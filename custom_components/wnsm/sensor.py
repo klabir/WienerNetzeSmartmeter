@@ -22,8 +22,10 @@ from homeassistant.helpers.typing import (
     ConfigType,
     DiscoveryInfoType,
 )
+from .api.constants import ValueType
 from .const import CONF_ZAEHLPUNKTE, DEFAULT_SCAN_INTERVAL_MINUTES
 from .day_sensor import WNSMDailySensor
+from .reading_date_sensor import WNSMReadingDateSensor
 from .wnsm_sensor import WNSMSensor
 # Time between updating data from Wiener Netze (YAML config only)
 SCAN_INTERVAL = timedelta(minutes=DEFAULT_SCAN_INTERVAL_MINUTES)
@@ -65,6 +67,32 @@ async def async_setup_entry(
             for zp in config[CONF_ZAEHLPUNKTE]
         ]
     )
+    wnsm_sensors.extend(
+        [
+            WNSMReadingDateSensor(
+                config[CONF_USERNAME],
+                config[CONF_PASSWORD],
+                zp["zaehlpunktnummer"],
+                "Meter",
+                ValueType.METER_READ,
+                scan_interval=scan_interval,
+            )
+            for zp in config[CONF_ZAEHLPUNKTE]
+        ]
+    )
+    wnsm_sensors.extend(
+        [
+            WNSMReadingDateSensor(
+                config[CONF_USERNAME],
+                config[CONF_PASSWORD],
+                zp["zaehlpunktnummer"],
+                "Day",
+                ValueType.DAY,
+                scan_interval=scan_interval,
+            )
+            for zp in config[CONF_ZAEHLPUNKTE]
+        ]
+    )
     async_add_entities(wnsm_sensors, update_before_add=True)
 
 
@@ -79,4 +107,21 @@ async def async_setup_platform(
     """Set up the sensor platform by adding it into configuration.yaml"""
     wnsm_sensor = WNSMSensor(config[CONF_USERNAME], config[CONF_PASSWORD], config[CONF_DEVICE_ID])
     wnsm_daily_sensor = WNSMDailySensor(config[CONF_USERNAME], config[CONF_PASSWORD], config[CONF_DEVICE_ID])
-    async_add_entities([wnsm_sensor, wnsm_daily_sensor], update_before_add=True)
+    wnsm_meter_reading_date = WNSMReadingDateSensor(
+        config[CONF_USERNAME],
+        config[CONF_PASSWORD],
+        config[CONF_DEVICE_ID],
+        "Meter",
+        ValueType.METER_READ,
+    )
+    wnsm_day_reading_date = WNSMReadingDateSensor(
+        config[CONF_USERNAME],
+        config[CONF_PASSWORD],
+        config[CONF_DEVICE_ID],
+        "Day",
+        ValueType.DAY,
+    )
+    async_add_entities(
+        [wnsm_sensor, wnsm_daily_sensor, wnsm_meter_reading_date, wnsm_day_reading_date],
+        update_before_add=True,
+    )

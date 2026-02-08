@@ -15,9 +15,10 @@ providing information about a registered [WienerNetze Smartmeter](https://www.wi
 ## Sensors
 
 The integration exposes one main energy sensor per Zählpunkt (total increasing meter reading) and a daily
-consumption sensor that reports the latest DAY value. Both sensors include raw API payloads and the dates
-used for meter reading lookups (yesterday and the day before yesterday) in their attributes for easier
-debugging.
+consumption sensor that reports the latest DAY value. It also exposes companion reading date sensors
+that surface the selected reading date as a timestamp for both the meter reading and DAY values. Both
+main sensors include raw API payloads and the dates used for meter reading lookups (yesterday and the
+day before yesterday) in their attributes for easier debugging.
 
 ## FAQs
 [FAQs](https://github.com/DarwinsBuddy/WienerNetzeSmartmeter/discussions/19)
