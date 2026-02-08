@@ -22,10 +22,10 @@ from homeassistant.helpers.typing import (
     ConfigType,
     DiscoveryInfoType,
 )
-from .const import CONF_ZAEHLPUNKTE
+from .const import CONF_ZAEHLPUNKTE, DEFAULT_SCAN_INTERVAL_MINUTES
 from .day_sensor import WNSMDailySensor
 from .wnsm_sensor import WNSMSensor
-# Time between updating data from Wiener Netze (YAML config only)
+# Time between updating data from Wiener Netze
 SCAN_INTERVAL = timedelta(minutes=DEFAULT_SCAN_INTERVAL_MINUTES)
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {

@@ -4,7 +4,7 @@
 DOMAIN = "wnsm"
 
 CONF_ZAEHLPUNKTE = "zaehlpunkte"
-DEFAULT_SCAN_INTERVAL_MINUTES = 1
+DEFAULT_SCAN_INTERVAL_MINUTES = 60 * 6
 
 ATTRS_ZAEHLPUNKT_CALL = [
     ("zaehlpunktnummer", "zaehlpunktnummer"),
