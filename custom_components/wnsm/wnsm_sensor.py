@@ -97,7 +97,13 @@ class WNSMSensor(SensorEntity):
             if async_smartmeter.is_active(zaehlpunkt_response):
                 # Since the update is not exactly at midnight, both yesterday and the day before are tried to make sure a meter reading is returned
                 reading_dates = [before(today(), 1), before(today(), 2)]
+                self._attr_extra_state_attributes["reading_dates"] = [
+                    reading_date.isoformat() for reading_date in reading_dates
+                ]
+                self._attr_extra_state_attributes["yesterday"] = reading_dates[0].isoformat()
+                self._attr_extra_state_attributes["day_before_yesterday"] = reading_dates[1].isoformat()
                 for reading_date in reading_dates:
+                    self._attr_extra_state_attributes["reading_date"] = reading_date.isoformat()
                     meter_reading, meter_reading_raw = await async_smartmeter.get_meter_reading_from_historic_data(
                         self.zaehlpunkt,
                         reading_date,

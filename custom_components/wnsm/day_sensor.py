@@ -90,6 +90,13 @@ class WNSMDailySensor(SensorEntity):
             }
 
             if async_smartmeter.is_active(zaehlpunkt_response):
+                reading_dates = [before(today(), 1), before(today(), 2)]
+                self._attr_extra_state_attributes["reading_dates"] = [
+                    reading_date.isoformat() for reading_date in reading_dates
+                ]
+                self._attr_extra_state_attributes["reading_date"] = reading_dates[0].isoformat()
+                self._attr_extra_state_attributes["yesterday"] = reading_dates[0].isoformat()
+                self._attr_extra_state_attributes["day_before_yesterday"] = reading_dates[1].isoformat()
                 start = before(today(), 1)
                 end = today()
                 bewegungsdaten, bewegungsdaten_raw = await async_smartmeter.get_bewegungsdaten(
