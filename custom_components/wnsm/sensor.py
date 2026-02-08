@@ -12,9 +12,10 @@ from homeassistant.components.sensor import (
     PLATFORM_SCHEMA
 )
 from homeassistant.const import (
-    CONF_USERNAME,
+    CONF_DEVICE_ID,
     CONF_PASSWORD,
-    CONF_DEVICE_ID
+    CONF_SCAN_INTERVAL,
+    CONF_USERNAME,
 )
 from homeassistant.core import DOMAIN
 from homeassistant.helpers.typing import (
@@ -24,8 +25,8 @@ from homeassistant.helpers.typing import (
 from .const import CONF_ZAEHLPUNKTE
 from .day_sensor import WNSMDailySensor
 from .wnsm_sensor import WNSMSensor
-# Time between updating data from Wiener Netze
-SCAN_INTERVAL = timedelta(minutes=60 * 6)
+# Time between updating data from Wiener Netze (YAML config only)
+SCAN_INTERVAL = timedelta(minutes=DEFAULT_SCAN_INTERVAL_MINUTES)
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
         vol.Required(CONF_USERNAME): cv.string,
@@ -42,8 +43,15 @@ async def async_setup_entry(
 ):
     """Setup sensors from a config entry created in the integrations UI."""
     config = hass.data[DOMAIN][config_entry.entry_id]
+    scan_interval_minutes = config.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL_MINUTES)
+    scan_interval = timedelta(minutes=scan_interval_minutes)
     wnsm_sensors = [
-        WNSMSensor(config[CONF_USERNAME], config[CONF_PASSWORD], zp["zaehlpunktnummer"])
+        WNSMSensor(
+            config[CONF_USERNAME],
+            config[CONF_PASSWORD],
+            zp["zaehlpunktnummer"],
+            scan_interval=scan_interval,
+        )
         for zp in config[CONF_ZAEHLPUNKTE]
     ]
     wnsm_sensors.extend(

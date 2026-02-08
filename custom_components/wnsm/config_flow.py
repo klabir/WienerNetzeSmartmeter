@@ -7,16 +7,31 @@ from typing import Any, Optional
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.const import CONF_USERNAME, CONF_PASSWORD
+from homeassistant.const import CONF_PASSWORD, CONF_SCAN_INTERVAL, CONF_USERNAME
+from homeassistant.helpers import selector
 
 from .api import Smartmeter
-from .const import ATTRS_ZAEHLPUNKTE_CALL, DOMAIN, CONF_ZAEHLPUNKTE
+from .const import ATTRS_ZAEHLPUNKTE_CALL, CONF_ZAEHLPUNKTE, DEFAULT_SCAN_INTERVAL_MINUTES, DOMAIN
 from .utils import translate_dict
 
 _LOGGER = logging.getLogger(__name__)
 
+SCAN_INTERVAL_SELECTOR = selector.NumberSelector(
+    selector.NumberSelectorConfig(
+        min=1,
+        max=1440,
+        step=1,
+        mode=selector.NumberSelectorMode.BOX,
+        unit_of_measurement="min",
+    )
+)
+
 AUTH_SCHEMA = vol.Schema(
-    {vol.Required(CONF_USERNAME): cv.string, vol.Required(CONF_PASSWORD): cv.string}
+    {
+        vol.Required(CONF_USERNAME): cv.string,
+        vol.Required(CONF_PASSWORD): cv.string,
+        vol.Optional(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL_MINUTES): SCAN_INTERVAL_SELECTOR,
+    }
 )
 
 
@@ -69,3 +84,29 @@ class WienerNetzeSmartMeterCustomConfigFlow(config_entries.ConfigFlow, domain=DO
         return self.async_show_form(
             step_id="user", data_schema=AUTH_SCHEMA, errors=errors
         )
+
+    @staticmethod
+    def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> config_entries.OptionsFlow:
+        return WienerNetzeSmartMeterOptionsFlow(config_entry)
+
+
+class WienerNetzeSmartMeterOptionsFlow(config_entries.OptionsFlow):
+    """Handle options for Wiener Netze Smartmeter."""
+
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        self.config_entry = config_entry
+
+    async def async_step_init(self, user_input: Optional[dict[str, Any]] = None):
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        current_interval = self.config_entry.options.get(
+            CONF_SCAN_INTERVAL,
+            self.config_entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL_MINUTES),
+        )
+        data_schema = vol.Schema(
+            {
+                vol.Optional(CONF_SCAN_INTERVAL, default=current_interval): SCAN_INTERVAL_SELECTOR,
+            }
+        )
+        return self.async_show_form(step_id="init", data_schema=data_schema)
