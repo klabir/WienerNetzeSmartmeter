@@ -1,10 +1,9 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.const import UnitOfEnergy
-from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import dt as dt_util
 
 from .AsyncSmartmeter import AsyncSmartmeter
@@ -18,22 +17,13 @@ _LOGGER = logging.getLogger(__name__)
 class WNSMDailySensor(SensorEntity):
     """Representation of a daily consumption sensor."""
 
-    def __init__(
-        self,
-        username: str,
-        password: str,
-        zaehlpunkt: str,
-        scan_interval: timedelta | None = None,
-    ) -> None:
+    def __init__(self, username: str, password: str, zaehlpunkt: str) -> None:
         super().__init__()
         self.username = username
         self.password = password
         self.zaehlpunkt = zaehlpunkt
-        self._scan_interval = scan_interval
-        self._unsub_timer = None
 
         self._attr_native_value: int | float | None = None
-        self._attr_extra_state_attributes = {"raw_api": {}}
         self._attr_name = f"{zaehlpunkt} Day"
         self._attr_icon = "mdi:calendar-today"
         self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -42,24 +32,6 @@ class WNSMDailySensor(SensorEntity):
 
         self._available: bool = True
         self._updatets: str | None = None
-        self._attr_should_poll = self._scan_interval is None
-
-    async def async_added_to_hass(self) -> None:
-        if self._scan_interval:
-            self._unsub_timer = async_track_time_interval(
-                self.hass,
-                self._handle_scheduled_update,
-                self._scan_interval,
-            )
-
-    async def async_will_remove_from_hass(self) -> None:
-        if self._unsub_timer:
-            self._unsub_timer()
-            self._unsub_timer = None
-
-    async def _handle_scheduled_update(self, now) -> None:
-        await self.async_update()
-        self.async_write_ha_state()
 
     @property
     def name(self) -> str:
@@ -76,8 +48,8 @@ class WNSMDailySensor(SensorEntity):
         """Return True if entity is available."""
         return self._available
 
-    def _daily_value(self, bewegungsdaten: dict[str, Any]) -> float | None:
-        values = bewegungsdaten.get("values", [])
+    def _daily_value(self, messwerte: dict[str, Any]) -> float | None:
+        values = messwerte.get("values", [])
         if not values:
             return None
         values_with_ts = [
@@ -95,7 +67,7 @@ class WNSMDailySensor(SensorEntity):
         wert = latest.get("messwert")
         if wert is None:
             return None
-        unit = bewegungsdaten.get("unitOfMeasurement")
+        unit = messwerte.get("unitOfMeasurement")
         if unit is None:
             return None
         unit = unit.upper()
@@ -114,35 +86,16 @@ class WNSMDailySensor(SensorEntity):
             smartmeter = Smartmeter(username=self.username, password=self.password)
             async_smartmeter = AsyncSmartmeter(self.hass, smartmeter)
             await async_smartmeter.login()
-            zaehlpunkt_response, zaehlpunkt_raw = await async_smartmeter.get_zaehlpunkt_with_raw(self.zaehlpunkt)
-            self._attr_extra_state_attributes = {
-                "raw_api": {
-                    "zaehlpunkt": zaehlpunkt_raw,
-                },
-                "reading_date": None,
-                "yesterday": None,
-                "day_before_yesterday": None,
-            }
-            self._attr_extra_state_attributes.update(zaehlpunkt_response)
-
+            zaehlpunkt_response = await async_smartmeter.get_zaehlpunkt(self.zaehlpunkt)
             if async_smartmeter.is_active(zaehlpunkt_response):
-                reading_dates = [before(today(), 1), before(today(), 2)]
-                self._attr_extra_state_attributes["reading_dates"] = [
-                    reading_date.isoformat() for reading_date in reading_dates
-                ]
-                self._attr_extra_state_attributes["reading_date"] = reading_dates[0].isoformat()
-                self._attr_extra_state_attributes["yesterday"] = reading_dates[0].isoformat()
-                self._attr_extra_state_attributes["day_before_yesterday"] = reading_dates[1].isoformat()
                 start = before(today(), 1)
                 end = today()
-                messwerte, messwerte_raw = await async_smartmeter.get_historic_data(
+                messwerte = await async_smartmeter.get_historic_data(
                     self.zaehlpunkt,
                     start,
                     end,
                     ValueType.DAY,
-                    include_raw=True,
                 )
-                self._attr_extra_state_attributes["raw_api"]["messwerte_day"] = messwerte_raw
                 daily_value = self._daily_value(messwerte)
                 if daily_value is not None:
                     self._attr_native_value = daily_value
