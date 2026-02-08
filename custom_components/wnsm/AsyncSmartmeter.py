@@ -103,19 +103,27 @@ class AsyncSmartmeter:
 
         return translate_dict(response, ATTRS_VERBRAUCH_CALL)
 
-    async def get_historic_data(self, zaehlpunkt: str, date_from: datetime = None, date_to: datetime = None, granularity: ValueType = ValueType.QUARTER_HOUR):
-        """Return three years of historic quarter-hourly data"""
+    async def get_historic_data(
+        self,
+        zaehlpunkt: str,
+        date_from: datetime = None,
+        date_to: datetime = None,
+        granularity: ValueType = ValueType.QUARTER_HOUR,
+        include_raw: bool = False,
+    ) -> dict[str, any] | tuple[dict[str, any], dict]:
+        """Return historic data for the given granularity."""
         response = await self.hass.async_add_executor_job(
             self.smartmeter.historical_data,
             zaehlpunkt,
             date_from,
             date_to,
-            granularity
+            granularity,
         )
         if "Exception" in response:
             raise RuntimeError(f"Cannot access historic data: {response}")
         _LOGGER.debug(f"Raw historical data: {response}")
-        return translate_dict(response, ATTRS_HISTORIC_DATA)
+        parsed = translate_dict(response, ATTRS_HISTORIC_DATA)
+        return (parsed, response) if include_raw else parsed
 
     async def get_meter_reading_from_historic_data(
         self,

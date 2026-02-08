@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Optional
 
 from homeassistant.components.sensor import (
@@ -9,6 +9,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import UnitOfEnergy
+from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import slugify
 
 from .AsyncSmartmeter import AsyncSmartmeter
@@ -29,11 +30,19 @@ class WNSMSensor(SensorEntity):
     def _icon(self) -> str:
         return "mdi:flash"
 
-    def __init__(self, username: str, password: str, zaehlpunkt: str) -> None:
+    def __init__(
+        self,
+        username: str,
+        password: str,
+        zaehlpunkt: str,
+        scan_interval: timedelta | None = None,
+    ) -> None:
         super().__init__()
         self.username = username
         self.password = password
         self.zaehlpunkt = zaehlpunkt
+        self._scan_interval = scan_interval
+        self._unsub_timer = None
 
         self._attr_native_value: int | float | None = 0
         self._attr_extra_state_attributes = {"raw_api": {}}
@@ -47,6 +56,24 @@ class WNSMSensor(SensorEntity):
         self._name: str = zaehlpunkt
         self._available: bool = True
         self._updatets: str | None = None
+        self._attr_should_poll = self._scan_interval is None
+
+    async def async_added_to_hass(self) -> None:
+        if self._scan_interval:
+            self._unsub_timer = async_track_time_interval(
+                self.hass,
+                self._handle_scheduled_update,
+                self._scan_interval,
+            )
+
+    async def async_will_remove_from_hass(self) -> None:
+        if self._unsub_timer:
+            self._unsub_timer()
+            self._unsub_timer = None
+
+    async def _handle_scheduled_update(self, now) -> None:
+        await self.async_update()
+        self.async_write_ha_state()
 
     @property
     def get_state(self) -> Optional[str]:
@@ -88,11 +115,14 @@ class WNSMSensor(SensorEntity):
             await async_smartmeter.login()
             zaehlpunkt_response, zaehlpunkt_raw = await async_smartmeter.get_zaehlpunkt_with_raw(self.zaehlpunkt)
             self._attr_extra_state_attributes = {
-                **zaehlpunkt_response,
                 "raw_api": {
                     "zaehlpunkt": zaehlpunkt_raw,
                 },
+                "reading_date": None,
+                "yesterday": None,
+                "day_before_yesterday": None,
             }
+            self._attr_extra_state_attributes.update(zaehlpunkt_response)
 
             if async_smartmeter.is_active(zaehlpunkt_response):
                 # Since the update is not exactly at midnight, both yesterday and the day before are tried to make sure a meter reading is returned
