@@ -41,6 +41,12 @@ class WNSMReadingDateSensor(SensorEntity):
 
         self._available: bool = True
         self._updatets: str | None = None
+        self._unique_id = self._attr_unique_id
+
+    @property
+    def unique_id(self) -> str:
+        """Return the unique ID of the sensor."""
+        return self._unique_id
 
     @property
     def available(self) -> bool:
