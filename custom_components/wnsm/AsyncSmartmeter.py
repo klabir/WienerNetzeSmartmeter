@@ -64,6 +64,14 @@ class AsyncSmartmeter:
         asynchronously get and parse /zaehlpunkt response
         Returns response already sanitized of the specified zaehlpunkt in ctor
         """
+        data = await self.get_zaehlpunkt_with_raw(zaehlpunkt)
+        return data[0]
+
+    async def get_zaehlpunkt_with_raw(self, zaehlpunkt: str) -> tuple[dict[str, str], dict]:
+        """
+        asynchronously get and parse /zaehlpunkt response
+        Returns tuple of translated data and raw response for the specified zaehlpunkt
+        """
         contracts = await self.hass.async_add_executor_job(self.smartmeter.zaehlpunkte)
         zaehlpunkte = self.contracts2zaehlpunkte(contracts, zaehlpunkt)
         zp = [z for z in zaehlpunkte if z["zaehlpunktnummer"] == zaehlpunkt]
@@ -71,9 +79,8 @@ class AsyncSmartmeter:
             raise RuntimeError(f"Zaehlpunkt {zaehlpunkt} not found")
 
         return (
-            translate_dict(zp[0], ATTRS_ZAEHLPUNKTE_CALL)
-            if len(zp) > 0
-            else None
+            translate_dict(zp[0], ATTRS_ZAEHLPUNKTE_CALL),
+            zp[0]
         )
 
     async def get_consumption(self, customer_id: str, zaehlpunkt: str, start_date: datetime):
@@ -96,21 +103,35 @@ class AsyncSmartmeter:
 
         return translate_dict(response, ATTRS_VERBRAUCH_CALL)
 
-    async def get_historic_data(self, zaehlpunkt: str, date_from: datetime = None, date_to: datetime = None, granularity: ValueType = ValueType.QUARTER_HOUR):
-        """Return three years of historic quarter-hourly data"""
+    async def get_historic_data(
+        self,
+        zaehlpunkt: str,
+        date_from: datetime = None,
+        date_to: datetime = None,
+        granularity: ValueType = ValueType.QUARTER_HOUR,
+        include_raw: bool = False,
+    ) -> dict[str, any] | tuple[dict[str, any], dict]:
+        """Return historic data for the given granularity."""
         response = await self.hass.async_add_executor_job(
             self.smartmeter.historical_data,
             zaehlpunkt,
             date_from,
             date_to,
-            granularity
+            granularity,
         )
         if "Exception" in response:
             raise RuntimeError(f"Cannot access historic data: {response}")
         _LOGGER.debug(f"Raw historical data: {response}")
-        return translate_dict(response, ATTRS_HISTORIC_DATA)
+        parsed = translate_dict(response, ATTRS_HISTORIC_DATA)
+        return (parsed, response) if include_raw else parsed
 
-    async def get_meter_reading_from_historic_data(self, zaehlpunkt: str, start_date: datetime, end_date: datetime) -> float:
+    async def get_meter_reading_from_historic_data(
+        self,
+        zaehlpunkt: str,
+        start_date: datetime,
+        end_date: datetime,
+        include_raw: bool = False
+    ) -> float | tuple[float | None, dict]:
         """Return daily meter readings from the given start date until today"""
         response = await self.hass.async_add_executor_job(
             self.smartmeter.historical_data,
@@ -123,8 +144,10 @@ class AsyncSmartmeter:
             raise RuntimeError(f"Cannot access historic data: {response}")
         _LOGGER.debug(f"Raw historical data: {response}")
         meter_readings = translate_dict(response, ATTRS_HISTORIC_DATA)
+        reading = None
         if "values" in meter_readings and all("messwert" in messwert for messwert in meter_readings['values']) and len(meter_readings['values']) > 0:
-            return meter_readings['values'][0]['messwert'] / 1000
+            reading = meter_readings['values'][0]['messwert'] / 1000
+        return (reading, response) if include_raw else reading
 
     @staticmethod
     def is_active(zaehlpunkt_response: dict) -> bool:
@@ -138,7 +161,14 @@ class AsyncSmartmeter:
                 or zaehlpunkt_response["smartMeterReady"]
         )
 
-    async def get_bewegungsdaten(self, zaehlpunkt: str, start: datetime = None, end: datetime = None, granularity: ValueType = ValueType.QUARTER_HOUR):
+    async def get_bewegungsdaten(
+        self,
+        zaehlpunkt: str,
+        start: datetime = None,
+        end: datetime = None,
+        granularity: ValueType = ValueType.QUARTER_HOUR,
+        include_raw: bool = False
+    ) -> dict[str, any] | tuple[dict[str, any], dict]:
         """Return three years of historic quarter-hourly data"""
         response = await self.hass.async_add_executor_job(
             self.smartmeter.bewegungsdaten,
@@ -150,7 +180,8 @@ class AsyncSmartmeter:
         if "Exception" in response:
             raise RuntimeError(f"Cannot access bewegungsdaten: {response}")
         _LOGGER.debug(f"Raw bewegungsdaten: {response}")
-        return translate_dict(response, ATTRS_BEWEGUNGSDATEN)
+        parsed = translate_dict(response, ATTRS_BEWEGUNGSDATEN)
+        return (parsed, response) if include_raw else parsed
 
     async def get_consumptions(self) -> dict[str, str]:
         """
