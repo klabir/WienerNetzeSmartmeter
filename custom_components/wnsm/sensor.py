@@ -22,6 +22,7 @@ from homeassistant.helpers.typing import (
     DiscoveryInfoType,
 )
 from .const import CONF_ZAEHLPUNKTE
+from .day_sensor import WNSMDailySensor
 from .wnsm_sensor import WNSMSensor
 # Time between updating data from Wiener Netze
 SCAN_INTERVAL = timedelta(minutes=60 * 6)
@@ -45,6 +46,12 @@ async def async_setup_entry(
         WNSMSensor(config[CONF_USERNAME], config[CONF_PASSWORD], zp["zaehlpunktnummer"])
         for zp in config[CONF_ZAEHLPUNKTE]
     ]
+    wnsm_sensors.extend(
+        [
+            WNSMDailySensor(config[CONF_USERNAME], config[CONF_PASSWORD], zp["zaehlpunktnummer"])
+            for zp in config[CONF_ZAEHLPUNKTE]
+        ]
+    )
     async_add_entities(wnsm_sensors, update_before_add=True)
 
 
@@ -58,4 +65,5 @@ async def async_setup_platform(
 ) -> None:
     """Set up the sensor platform by adding it into configuration.yaml"""
     wnsm_sensor = WNSMSensor(config[CONF_USERNAME], config[CONF_PASSWORD], config[CONF_DEVICE_ID])
-    async_add_entities([wnsm_sensor], update_before_add=True)
+    wnsm_daily_sensor = WNSMDailySensor(config[CONF_USERNAME], config[CONF_PASSWORD], config[CONF_DEVICE_ID])
+    async_add_entities([wnsm_sensor, wnsm_daily_sensor], update_before_add=True)
