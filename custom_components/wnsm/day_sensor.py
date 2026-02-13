@@ -1,14 +1,13 @@
 import logging
 from datetime import datetime
-from typing import Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.const import UnitOfEnergy
-from homeassistant.util import dt as dt_util
 
 from .AsyncSmartmeter import AsyncSmartmeter
 from .api import Smartmeter
 from .api.constants import ValueType
+from .day_processing import latest_day_point
 from .utils import before, today
 
 _LOGGER = logging.getLogger(__name__)
@@ -49,41 +48,6 @@ class WNSMDailySensor(SensorEntity):
         """Return True if entity is available."""
         return self._available
 
-    def _daily_value(self, messwerte: dict[str, Any]) -> tuple[float | None, str | None]:
-        values = messwerte.get("values", [])
-        if not values:
-            return None, None
-        values_with_ts = [
-            value
-            for value in values
-            if value.get("zeitBis") is not None or value.get("zeitVon") is not None
-        ]
-        if not values_with_ts:
-            return None, None
-        latest = max(
-            values_with_ts,
-            key=lambda value: dt_util.parse_datetime(value.get("zeitBis") or value.get("zeitVon"))
-            or datetime.min,
-        )
-        wert = latest.get("messwert")
-        if wert is None:
-            return None, None
-        unit = messwerte.get("unitOfMeasurement")
-        if unit is None:
-            return None, None
-        unit = unit.upper()
-        if unit == "WH":
-            factor = 1e-3
-        elif unit == "KWH":
-            factor = 1.0
-        else:
-            _LOGGER.warning("Unknown unit for daily consumption: %s", unit)
-            return None, None
-
-        latest_zeitbis = dt_util.parse_datetime(latest.get("zeitBis") or latest.get("zeitVon"))
-        reading_date = latest_zeitbis.isoformat() if latest_zeitbis is not None else None
-        return wert * factor, reading_date
-
     async def async_update(self):
         """Update sensor."""
         try:
@@ -108,11 +72,12 @@ class WNSMDailySensor(SensorEntity):
                     end,
                     ValueType.DAY,
                 )
-                daily_value, reading_date = self._daily_value(messwerte)
-                if daily_value is not None:
-                    self._attr_native_value = daily_value
-                if reading_date is not None:
-                    self._attr_extra_state_attributes["reading_date"] = reading_date
+                latest = latest_day_point(messwerte)
+                if latest is not None:
+                    self._attr_native_value = latest.value_kwh
+                    self._attr_extra_state_attributes["reading_date"] = latest.reading_date
+                else:
+                    _LOGGER.debug("No usable DAY values returned for %s", self.zaehlpunkt)
             self._available = True
             self._updatets = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
         except TimeoutError as e:
