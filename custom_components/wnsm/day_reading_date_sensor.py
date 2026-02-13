@@ -18,6 +18,7 @@ class WNSMDayReadingDateSensor(SensorEntity):
 
     def __init__(
         self,
+        async_smartmeter: AsyncSmartmeter | None,
         username: str,
         password: str,
         zaehlpunkt: str,
@@ -27,6 +28,7 @@ class WNSMDayReadingDateSensor(SensorEntity):
         self.username = username
         self.password = password
         self.zaehlpunkt = zaehlpunkt
+        self._async_smartmeter = async_smartmeter
 
         self._attr_name = f"{zaehlpunkt} Day Reading Date"
         self._attr_icon = "mdi:calendar-clock"
@@ -47,11 +49,17 @@ class WNSMDayReadingDateSensor(SensorEntity):
         """Return True if entity is available."""
         return self._available
 
+    def _get_async_smartmeter(self) -> AsyncSmartmeter:
+        """Return shared async smartmeter client, fallback to per-entity one."""
+        if self._async_smartmeter is None:
+            smartmeter = Smartmeter(username=self.username, password=self.password)
+            self._async_smartmeter = AsyncSmartmeter(self.hass, smartmeter)
+        return self._async_smartmeter
+
     async def async_update(self):
         """Update sensor."""
         try:
-            smartmeter = Smartmeter(username=self.username, password=self.password)
-            async_smartmeter = AsyncSmartmeter(self.hass, smartmeter)
+            async_smartmeter = self._get_async_smartmeter()
             await async_smartmeter.login()
             zaehlpunkt_response = await async_smartmeter.get_zaehlpunkt(self.zaehlpunkt)
             reading_dates, self._attr_extra_state_attributes = build_reading_date_attributes(

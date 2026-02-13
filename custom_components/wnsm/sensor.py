@@ -25,15 +25,18 @@ async def async_setup_entry(
     runtime_data = config_entry.runtime_data
     if runtime_data is not None and hasattr(runtime_data, "config"):
         config = runtime_data.config
+        async_smartmeter = runtime_data.async_smartmeter
     else:
         # Backward compatibility fallback.
         config = hass.data[DOMAIN][config_entry.entry_id]
+        async_smartmeter = None
 
     scan_interval_minutes = config.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL_MINUTES)
     scan_interval = timedelta(minutes=scan_interval_minutes)
 
     wnsm_sensors = [
         WNSMSensor(
+            async_smartmeter,
             config["username"],
             config["password"],
             zp["zaehlpunktnummer"],
@@ -44,6 +47,7 @@ async def async_setup_entry(
     wnsm_sensors.extend(
         [
             WNSMDailySensor(
+                async_smartmeter,
                 config["username"],
                 config["password"],
                 zp["zaehlpunktnummer"],
@@ -56,6 +60,7 @@ async def async_setup_entry(
     wnsm_sensors.extend(
         [
             WNSMDayReadingDateSensor(
+                async_smartmeter,
                 config["username"],
                 config["password"],
                 zp["zaehlpunktnummer"],

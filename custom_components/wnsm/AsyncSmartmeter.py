@@ -1,49 +1,80 @@
 import asyncio
 import logging
-from asyncio import Future
 from datetime import datetime
+from typing import Any
 
 from homeassistant.core import HomeAssistant
 
 from .api import Smartmeter
 from .api.constants import ValueType
-from .const import ATTRS_METERREADINGS_CALL, ATTRS_BASEINFORMATION_CALL, ATTRS_CONSUMPTIONS_CALL, ATTRS_BEWEGUNGSDATEN, ATTRS_ZAEHLPUNKTE_CALL, ATTRS_HISTORIC_DATA, ATTRS_VERBRAUCH_CALL
+from .api.errors import SmartmeterConnectionError
+from .const import (
+    ATTRS_BASEINFORMATION_CALL,
+    ATTRS_BEWEGUNGSDATEN,
+    ATTRS_CONSUMPTIONS_CALL,
+    ATTRS_HISTORIC_DATA,
+    ATTRS_METERREADINGS_CALL,
+    ATTRS_VERBRAUCH_CALL,
+    ATTRS_ZAEHLPUNKTE_CALL,
+)
 from .utils import translate_dict
 
 _LOGGER = logging.getLogger(__name__)
 
-class AsyncSmartmeter:
 
-    def __init__(self, hass: HomeAssistant, smartmeter: Smartmeter = None):
+class AsyncSmartmeter:
+    """Async wrapper around Smartmeter API client with reauth support."""
+
+    def __init__(self, hass: HomeAssistant, smartmeter: Smartmeter | None = None):
         self.hass = hass
         self.smartmeter = smartmeter
         self.login_lock = asyncio.Lock()
 
-    async def login(self) -> Future:
+    async def login(self):
+        """Ensure authentication is valid."""
         async with self.login_lock:
             return await self.hass.async_add_executor_job(self.smartmeter.login)
 
-    async def get_meter_readings(self) -> dict[str, any]:
-        """
-        asynchronously get and parse /meterReadings response
-        Returns response already sanitized of the specified zaehlpunkt in ctor
-        """
-        response = await self.hass.async_add_executor_job(
-            self.smartmeter.historical_data,
-        )
-        if "Exception" in response:
-            raise RuntimeError("Cannot access /meterReadings: ", response)
+    @staticmethod
+    def _response_has_exception(response: Any) -> bool:
+        return isinstance(response, dict) and "Exception" in response
+
+    @staticmethod
+    def _is_unauthorized_response(response: Any) -> bool:
+        if not isinstance(response, dict):
+            return False
+        status = response.get("status") or response.get("statusCode")
+        if status == 401:
+            return True
+        exception_message = str(response.get("Exception", ""))
+        return "401" in exception_message or "unauthorized" in exception_message.lower()
+
+    async def _call_with_reauth(self, method, *args):
+        """Run Smartmeter API call and retry once after reauth if needed."""
+        try:
+            response = await self.hass.async_add_executor_job(method, *args)
+        except SmartmeterConnectionError:
+            await self.login()
+            response = await self.hass.async_add_executor_job(method, *args)
+
+        if self._is_unauthorized_response(response):
+            await self.login()
+            response = await self.hass.async_add_executor_job(method, *args)
+
+        return response
+
+    async def get_meter_readings(self) -> dict[str, Any]:
+        """Asynchronously get and parse /meterReadings response."""
+        response = await self._call_with_reauth(self.smartmeter.historical_data)
+        if self._response_has_exception(response):
+            raise RuntimeError("Cannot access /meterReadings", response)
         return translate_dict(response, ATTRS_METERREADINGS_CALL)
 
-
     async def get_base_information(self) -> dict[str, str]:
-        """
-        asynchronously get and parse /baseInformation response
-        Returns response already sanitized of the specified zaehlpunkt in ctor
-        """
-        response = await self.hass.async_add_executor_job(self.smartmeter.base_information)
-        if "Exception" in response:
-            raise RuntimeError("Cannot access /baseInformation: ", response)
+        """Asynchronously get and parse /baseInformation response."""
+        response = await self._call_with_reauth(self.smartmeter.base_information)
+        if self._response_has_exception(response):
+            raise RuntimeError("Cannot access /baseInformation", response)
         return translate_dict(response, ATTRS_BASEINFORMATION_CALL)
 
     def contracts2zaehlpunkte(self, contracts: dict, zaehlpunkt: str) -> list[dict]:
@@ -53,52 +84,46 @@ class AsyncSmartmeter:
                 if "zaehlpunkte" in contract:
                     geschaeftspartner = contract["geschaeftspartner"] if "geschaeftspartner" in contract else None
                     zaehlpunkte += [
-                        {**z, "geschaeftspartner": geschaeftspartner} for z in contract["zaehlpunkte"] if z["zaehlpunktnummer"] == zaehlpunkt
+                        {**z, "geschaeftspartner": geschaeftspartner}
+                        for z in contract["zaehlpunkte"]
+                        if z["zaehlpunktnummer"] == zaehlpunkt
                     ]
         else:
             raise RuntimeError(f"Cannot access Zaehlpunkt {zaehlpunkt}")
         return zaehlpunkte
 
     async def get_zaehlpunkt(self, zaehlpunkt: str) -> dict[str, str]:
-        """
-        asynchronously get and parse /zaehlpunkt response
-        Returns response already sanitized of the specified zaehlpunkt in ctor
-        """
-        data = await self.get_zaehlpunkt_with_raw(zaehlpunkt)
-        return data[0]
-
-    async def get_zaehlpunkt_with_raw(self, zaehlpunkt: str) -> tuple[dict[str, str], dict]:
-        """
-        asynchronously get and parse /zaehlpunkt response
-        Returns tuple of translated data and raw response for the specified zaehlpunkt
-        """
-        contracts = await self.hass.async_add_executor_job(self.smartmeter.zaehlpunkte)
+        """Asynchronously get and parse /zaehlpunkt response."""
+        contracts = await self._call_with_reauth(self.smartmeter.zaehlpunkte)
         zaehlpunkte = self.contracts2zaehlpunkte(contracts, zaehlpunkt)
         zp = [z for z in zaehlpunkte if z["zaehlpunktnummer"] == zaehlpunkt]
         if len(zp) == 0:
             raise RuntimeError(f"Zaehlpunkt {zaehlpunkt} not found")
 
-        return (
-            translate_dict(zp[0], ATTRS_ZAEHLPUNKTE_CALL),
-            zp[0]
-        )
+        return translate_dict(zp[0], ATTRS_ZAEHLPUNKTE_CALL) if len(zp) > 0 else None
 
     async def get_consumption(self, customer_id: str, zaehlpunkt: str, start_date: datetime):
-        """Return 24h of hourly consumption starting from a date"""
-        response = await self.hass.async_add_executor_job(
-            self.smartmeter.verbrauch, customer_id, zaehlpunkt, start_date
+        """Return 24h of hourly consumption starting from a date."""
+        response = await self._call_with_reauth(
+            self.smartmeter.verbrauch,
+            customer_id,
+            zaehlpunkt,
+            start_date,
         )
-        if "Exception" in response:
+        if self._response_has_exception(response):
             raise RuntimeError(f"Cannot access daily consumption: {response}")
 
         return translate_dict(response, ATTRS_VERBRAUCH_CALL)
 
     async def get_consumption_raw(self, customer_id: str, zaehlpunkt: str, start_date: datetime):
-        """Return daily consumptions from the given start date until today"""
-        response = await self.hass.async_add_executor_job(
-            self.smartmeter.verbrauchRaw, customer_id, zaehlpunkt, start_date
+        """Return daily consumptions from the given start date until today."""
+        response = await self._call_with_reauth(
+            self.smartmeter.verbrauchRaw,
+            customer_id,
+            zaehlpunkt,
+            start_date,
         )
-        if "Exception" in response:
+        if self._response_has_exception(response):
             raise RuntimeError(f"Cannot access daily consumption: {response}")
 
         return translate_dict(response, ATTRS_VERBRAUCH_CALL)
@@ -109,56 +134,50 @@ class AsyncSmartmeter:
         date_from: datetime = None,
         date_to: datetime = None,
         granularity: ValueType = ValueType.QUARTER_HOUR,
-        include_raw: bool = False,
-    ) -> dict[str, any] | tuple[dict[str, any], dict]:
-        """Return historic data for the given granularity."""
-        response = await self.hass.async_add_executor_job(
+    ):
+        """Return historic data."""
+        response = await self._call_with_reauth(
             self.smartmeter.historical_data,
             zaehlpunkt,
             date_from,
             date_to,
             granularity,
         )
-        if "Exception" in response:
+        if self._response_has_exception(response):
             raise RuntimeError(f"Cannot access historic data: {response}")
-        _LOGGER.debug(f"Raw historical data: {response}")
-        parsed = translate_dict(response, ATTRS_HISTORIC_DATA)
-        return (parsed, response) if include_raw else parsed
+        _LOGGER.debug("Raw historical data: %s", response)
+        return translate_dict(response, ATTRS_HISTORIC_DATA)
 
     async def get_meter_reading_from_historic_data(
         self,
         zaehlpunkt: str,
         start_date: datetime,
         end_date: datetime,
-        include_raw: bool = False
-    ) -> float | tuple[float | None, dict]:
-        """Return daily meter readings from the given start date until today"""
-        response = await self.hass.async_add_executor_job(
+    ) -> float:
+        """Return daily meter readings from the given start date until today."""
+        response = await self._call_with_reauth(
             self.smartmeter.historical_data,
             zaehlpunkt,
             start_date,
             end_date,
-            ValueType.METER_READ
+            ValueType.METER_READ,
         )
-        if "Exception" in response:
+        if self._response_has_exception(response):
             raise RuntimeError(f"Cannot access historic data: {response}")
-        _LOGGER.debug(f"Raw historical data: {response}")
+        _LOGGER.debug("Raw historical data: %s", response)
         meter_readings = translate_dict(response, ATTRS_HISTORIC_DATA)
-        reading = None
-        if "values" in meter_readings and all("messwert" in messwert for messwert in meter_readings['values']) and len(meter_readings['values']) > 0:
-            reading = meter_readings['values'][0]['messwert'] / 1000
-        return (reading, response) if include_raw else reading
+        if "values" in meter_readings and all("messwert" in messwert for messwert in meter_readings["values"]) and len(meter_readings["values"]) > 0:
+            return meter_readings["values"][0]["messwert"] / 1000
+        return None
 
     @staticmethod
     def is_active(zaehlpunkt_response: dict) -> bool:
-        """
-        returns active status of smartmeter, according to zaehlpunkt response
-        """
+        """Return active status according to zaehlpunkt response."""
         return (
-                "active" not in zaehlpunkt_response or zaehlpunkt_response["active"]
+            "active" not in zaehlpunkt_response or zaehlpunkt_response["active"]
         ) or (
-                "smartMeterReady" not in zaehlpunkt_response
-                or zaehlpunkt_response["smartMeterReady"]
+            "smartMeterReady" not in zaehlpunkt_response
+            or zaehlpunkt_response["smartMeterReady"]
         )
 
     async def get_bewegungsdaten(
@@ -167,28 +186,23 @@ class AsyncSmartmeter:
         start: datetime = None,
         end: datetime = None,
         granularity: ValueType = ValueType.QUARTER_HOUR,
-        include_raw: bool = False
-    ) -> dict[str, any] | tuple[dict[str, any], dict]:
-        """Return three years of historic quarter-hourly data"""
-        response = await self.hass.async_add_executor_job(
+    ):
+        """Return historic bewegungsdaten."""
+        response = await self._call_with_reauth(
             self.smartmeter.bewegungsdaten,
             zaehlpunkt,
             start,
             end,
-            granularity
+            granularity,
         )
-        if "Exception" in response:
+        if self._response_has_exception(response):
             raise RuntimeError(f"Cannot access bewegungsdaten: {response}")
-        _LOGGER.debug(f"Raw bewegungsdaten: {response}")
-        parsed = translate_dict(response, ATTRS_BEWEGUNGSDATEN)
-        return (parsed, response) if include_raw else parsed
+        _LOGGER.debug("Raw bewegungsdaten: %s", response)
+        return translate_dict(response, ATTRS_BEWEGUNGSDATEN)
 
     async def get_consumptions(self) -> dict[str, str]:
-        """
-        asynchronously get and parse /consumptions response
-        Returns response already sanitized of the specified zaehlpunkt in ctor
-        """
-        response = await self.hass.async_add_executor_job(self.smartmeter.consumptions)
-        if "Exception" in response:
-            raise RuntimeError("Cannot access /consumptions: ", response)
+        """Asynchronously get and parse /consumptions response."""
+        response = await self._call_with_reauth(self.smartmeter.consumptions)
+        if self._response_has_exception(response):
+            raise RuntimeError("Cannot access /consumptions", response)
         return translate_dict(response, ATTRS_CONSUMPTIONS_CALL)
