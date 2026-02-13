@@ -8,8 +8,6 @@ from .const import (
     DOMAIN,
 )
 
-from .const import DEFAULT_SCAN_INTERVAL_MINUTES
-
 
 async def async_setup_entry(
     hass: core.HomeAssistant,

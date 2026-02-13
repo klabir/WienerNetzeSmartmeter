@@ -11,12 +11,7 @@ from homeassistant import core, config_entries
 from homeassistant.components.sensor import (
     PLATFORM_SCHEMA
 )
-from homeassistant.const import (
-    CONF_DEVICE_ID,
-    CONF_PASSWORD,
-    CONF_DEVICE_ID,
-    CONF_SCAN_INTERVAL,
-)
+from homeassistant.const import CONF_SCAN_INTERVAL
 from homeassistant.core import DOMAIN
 from homeassistant.helpers.typing import (
     ConfigType,
@@ -33,9 +28,9 @@ from .wnsm_sensor import WNSMSensor
 SCAN_INTERVAL = timedelta(minutes=DEFAULT_SCAN_INTERVAL_MINUTES)
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
-        vol.Required(CONF_USERNAME): cv.string,
-        vol.Required(CONF_PASSWORD): cv.string,
-        vol.Required(CONF_DEVICE_ID): cv.string,
+        vol.Required("username"): cv.string,
+        vol.Required("password"): cv.string,
+        vol.Required("device_id"): cv.string,
     }
 )
 
@@ -51,19 +46,14 @@ async def async_setup_entry(
     global SCAN_INTERVAL
     SCAN_INTERVAL = timedelta(minutes=scan_interval_minutes)
     wnsm_sensors = [
-        WNSMSensor(
-            config[CONF_USERNAME],
-            config[CONF_PASSWORD],
-            zp["zaehlpunktnummer"],
-            scan_interval=scan_interval,
-        )
+        WNSMSensor(config["username"], config["password"], zp["zaehlpunktnummer"])
         for zp in config[CONF_ZAEHLPUNKTE]
     ]
     wnsm_sensors.extend(
         [
             WNSMDailySensor(
-                config[CONF_USERNAME],
-                config[CONF_PASSWORD],
+                config["username"],
+                config["password"],
                 zp["zaehlpunktnummer"],
                 config.get(CONF_ENABLE_DAY_STATISTICS_IMPORT, False),
             )
@@ -82,11 +72,11 @@ async def async_setup_platform(
     ] = None,  # pylint: disable=unused-argument
 ) -> None:
     """Set up the sensor platform by adding it into configuration.yaml"""
-    wnsm_sensor = WNSMSensor(config[CONF_USERNAME], config[CONF_PASSWORD], config[CONF_DEVICE_ID])
+    wnsm_sensor = WNSMSensor(config["username"], config["password"], config["device_id"])
     wnsm_daily_sensor = WNSMDailySensor(
-        config[CONF_USERNAME],
-        config[CONF_PASSWORD],
-        config[CONF_DEVICE_ID],
+        config["username"],
+        config["password"],
+        config["device_id"],
         config.get(CONF_ENABLE_DAY_STATISTICS_IMPORT, False),
     )
     async_add_entities([wnsm_sensor, wnsm_daily_sensor], update_before_add=True)
