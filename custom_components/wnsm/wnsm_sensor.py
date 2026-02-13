@@ -9,6 +9,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import UnitOfEnergy
+from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import slugify
 
 from .AsyncSmartmeter import AsyncSmartmeter
@@ -41,9 +42,11 @@ class WNSMSensor(SensorEntity):
         self.username = username
         self.password = password
         self.zaehlpunkt = zaehlpunkt
+        self._scan_interval = scan_interval
+        self._unsub_timer = None
 
         self._attr_native_value: int | float | None = 0
-        self._attr_extra_state_attributes = {}
+        self._attr_extra_state_attributes = {"raw_api": {}}
         self._attr_name = zaehlpunkt
         self._attr_icon = self._icon()
         self._attr_state_class = SensorStateClass.TOTAL_INCREASING
