@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
@@ -29,6 +29,7 @@ class WNSMDailySensor(SensorEntity):
         self._attr_state_class = SensorStateClass.MEASUREMENT
         self._attr_device_class = SensorDeviceClass.ENERGY
         self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+        self._attr_extra_state_attributes = {}
 
         self._available: bool = True
         self._updatets: str | None = None
@@ -48,17 +49,17 @@ class WNSMDailySensor(SensorEntity):
         """Return True if entity is available."""
         return self._available
 
-    def _daily_value(self, messwerte: dict[str, Any]) -> float | None:
+    def _daily_value(self, messwerte: dict[str, Any]) -> tuple[float | None, str | None]:
         values = messwerte.get("values", [])
         if not values:
-            return None
+            return None, None
         values_with_ts = [
             value
             for value in values
             if value.get("zeitBis") is not None or value.get("zeitVon") is not None
         ]
         if not values_with_ts:
-            return None
+            return None, None
         latest = max(
             values_with_ts,
             key=lambda value: dt_util.parse_datetime(value.get("zeitBis") or value.get("zeitVon"))
@@ -66,10 +67,10 @@ class WNSMDailySensor(SensorEntity):
         )
         wert = latest.get("messwert")
         if wert is None:
-            return None
+            return None, None
         unit = messwerte.get("unitOfMeasurement")
         if unit is None:
-            return None
+            return None, None
         unit = unit.upper()
         if unit == "WH":
             factor = 1e-3
@@ -77,8 +78,15 @@ class WNSMDailySensor(SensorEntity):
             factor = 1.0
         else:
             _LOGGER.warning("Unknown unit for daily consumption: %s", unit)
-            return None
-        return wert * factor
+            return None, None
+
+        latest_zeitbis = dt_util.parse_datetime(latest.get("zeitBis") or latest.get("zeitVon"))
+        reading_date = (
+            (latest_zeitbis - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+            if latest_zeitbis is not None
+            else None
+        )
+        return wert * factor, reading_date
 
     async def async_update(self):
         """Update sensor."""
@@ -87,6 +95,14 @@ class WNSMDailySensor(SensorEntity):
             async_smartmeter = AsyncSmartmeter(self.hass, smartmeter)
             await async_smartmeter.login()
             zaehlpunkt_response = await async_smartmeter.get_zaehlpunkt(self.zaehlpunkt)
+            reading_dates = [before(today(), 1), before(today(), 2)]
+            self._attr_extra_state_attributes = {
+                **zaehlpunkt_response,
+                "reading_dates": [reading_date.isoformat() for reading_date in reading_dates],
+                "reading_date": None,
+                "yesterday": reading_dates[0].isoformat(),
+                "day_before_yesterday": reading_dates[1].isoformat(),
+            }
             if async_smartmeter.is_active(zaehlpunkt_response):
                 start = before(today(), 1)
                 end = today()
@@ -96,9 +112,11 @@ class WNSMDailySensor(SensorEntity):
                     end,
                     ValueType.DAY,
                 )
-                daily_value = self._daily_value(messwerte)
+                daily_value, reading_date = self._daily_value(messwerte)
                 if daily_value is not None:
                     self._attr_native_value = daily_value
+                if reading_date is not None:
+                    self._attr_extra_state_attributes["reading_date"] = reading_date
             self._available = True
             self._updatets = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
         except TimeoutError as e:
