@@ -16,6 +16,7 @@ from .AsyncSmartmeter import AsyncSmartmeter
 from .api import Smartmeter
 from .api.constants import ValueType
 from .importer import Importer
+from .const import DEFAULT_SCAN_INTERVAL_MINUTES
 from .utils import before, today, build_reading_date_attributes
 
 _LOGGER = logging.getLogger(__name__)
@@ -35,7 +36,7 @@ class WNSMSensor(SensorEntity):
         username: str,
         password: str,
         zaehlpunkt: str,
-        scan_interval: timedelta | None = None,
+        scan_interval: timedelta = timedelta(minutes=DEFAULT_SCAN_INTERVAL_MINUTES),
     ) -> None:
         super().__init__()
         self.username = username
@@ -56,24 +57,7 @@ class WNSMSensor(SensorEntity):
         self._name: str = zaehlpunkt
         self._available: bool = True
         self._updatets: str | None = None
-        self._attr_should_poll = self._scan_interval is None
-
-    async def async_added_to_hass(self) -> None:
-        if self._scan_interval:
-            self._unsub_timer = async_track_time_interval(
-                self.hass,
-                self._handle_scheduled_update,
-                self._scan_interval,
-            )
-
-    async def async_will_remove_from_hass(self) -> None:
-        if self._unsub_timer:
-            self._unsub_timer()
-            self._unsub_timer = None
-
-    async def _handle_scheduled_update(self, now) -> None:
-        await self.async_update()
-        self.async_write_ha_state()
+        self._attr_suggested_update_interval = scan_interval
 
     @property
     def get_state(self) -> Optional[str]:

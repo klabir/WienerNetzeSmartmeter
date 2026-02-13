@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.const import UnitOfEnergy
@@ -9,6 +9,7 @@ from .api import Smartmeter
 from .api.constants import ValueType
 from .day_processing import latest_day_point
 from .day_statistics_importer import DayStatisticsImporter
+from .const import DEFAULT_SCAN_INTERVAL_MINUTES
 from .utils import before, today, build_reading_date_attributes
 
 _LOGGER = logging.getLogger(__name__)
@@ -23,6 +24,7 @@ class WNSMDailySensor(SensorEntity):
         password: str,
         zaehlpunkt: str,
         enable_day_statistics_import: bool = False,
+        scan_interval: timedelta = timedelta(minutes=DEFAULT_SCAN_INTERVAL_MINUTES),
     ) -> None:
         super().__init__()
         self.username = username
@@ -40,6 +42,7 @@ class WNSMDailySensor(SensorEntity):
 
         self._available: bool = True
         self._updatets: str | None = None
+        self._attr_suggested_update_interval = scan_interval
 
     @property
     def name(self) -> str:

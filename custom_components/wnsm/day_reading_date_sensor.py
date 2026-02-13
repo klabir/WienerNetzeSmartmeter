@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 
@@ -7,6 +7,7 @@ from .AsyncSmartmeter import AsyncSmartmeter
 from .api import Smartmeter
 from .api.constants import ValueType
 from .day_processing import latest_day_point
+from .const import DEFAULT_SCAN_INTERVAL_MINUTES
 from .utils import before, today, build_reading_date_attributes
 
 _LOGGER = logging.getLogger(__name__)
@@ -15,7 +16,13 @@ _LOGGER = logging.getLogger(__name__)
 class WNSMDayReadingDateSensor(SensorEntity):
     """Expose DAY reading_date as dedicated timestamp sensor."""
 
-    def __init__(self, username: str, password: str, zaehlpunkt: str) -> None:
+    def __init__(
+        self,
+        username: str,
+        password: str,
+        zaehlpunkt: str,
+        scan_interval: timedelta = timedelta(minutes=DEFAULT_SCAN_INTERVAL_MINUTES),
+    ) -> None:
         super().__init__()
         self.username = username
         self.password = password
@@ -28,6 +35,7 @@ class WNSMDayReadingDateSensor(SensorEntity):
         self._attr_extra_state_attributes = {}
 
         self._available: bool = True
+        self._attr_suggested_update_interval = scan_interval
 
     @property
     def unique_id(self) -> str:

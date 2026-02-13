@@ -37,7 +37,7 @@ Copy `<project-dir>/custom_components/wnsm` into `<home-assistant-root>/config/c
 
 ## Configure
 
-You can choose between ui configuration or manual (by adding your credentials to `configuration.yaml` and `secrets.yaml` resp.)
+Configure the integration via the Home Assistant UI.
 After successful configuration you can add sensors to your favourite dashboard, or even to your energy dashboard to track your total consumption.
 
 ### UI
@@ -48,8 +48,6 @@ After successful configuration you can add sensors to your favourite dashboard, 
 <img src="./doc/wnsm5.png" alt="Authenticate with your credentials" width="500"/>
 <img src="./doc/wnsm6.png" alt="Observe that all your smartmeters got imported" width="500"/>
 
-### Manual
-See [Example configuration files](https://github.com/DarwinsBuddy/WienerNetzeSmartmeter/blob/main/example/configuration.yaml)
 ## Copyright
 
 This integration uses the API of https://www.wienernetze.at/smartmeter
