@@ -23,6 +23,7 @@ from homeassistant.helpers.typing import (
     DiscoveryInfoType,
 )
 from .day_sensor import WNSMDailySensor
+from .day_reading_date_sensor import WNSMDayReadingDateSensor
 from .wnsm_sensor import WNSMSensor
 # Time between updating data from Wiener Netze
 SCAN_INTERVAL = timedelta(minutes=DEFAULT_SCAN_INTERVAL_MINUTES)
@@ -60,6 +61,16 @@ async def async_setup_entry(
             for zp in config[CONF_ZAEHLPUNKTE]
         ]
     )
+    wnsm_sensors.extend(
+        [
+            WNSMDayReadingDateSensor(
+                config["username"],
+                config["password"],
+                zp["zaehlpunktnummer"],
+            )
+            for zp in config[CONF_ZAEHLPUNKTE]
+        ]
+    )
     async_add_entities(wnsm_sensors, update_before_add=True)
 
 
@@ -79,4 +90,9 @@ async def async_setup_platform(
         config["device_id"],
         config.get(CONF_ENABLE_DAY_STATISTICS_IMPORT, False),
     )
-    async_add_entities([wnsm_sensor, wnsm_daily_sensor], update_before_add=True)
+    wnsm_day_reading_date_sensor = WNSMDayReadingDateSensor(
+        config["username"],
+        config["password"],
+        config["device_id"],
+    )
+    async_add_entities([wnsm_sensor, wnsm_daily_sensor, wnsm_day_reading_date_sensor], update_before_add=True)

@@ -20,6 +20,8 @@ async def async_setup_entry(
     config.setdefault(CONF_ENABLE_DAY_STATISTICS_IMPORT, False)
     hass.data[DOMAIN][entry.entry_id] = config
 
+    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
+
     # Forward the setup to the sensor platform.
     await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
 
@@ -35,3 +37,11 @@ async def async_unload_entry(
     if unload_ok:
         hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
     return unload_ok
+
+
+async def async_reload_entry(
+    hass: core.HomeAssistant,
+    entry: config_entries.ConfigEntry,
+) -> None:
+    """Reload config entry when options are updated from UI."""
+    await hass.config_entries.async_reload(entry.entry_id)
