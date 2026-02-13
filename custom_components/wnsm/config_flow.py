@@ -105,7 +105,7 @@ class WienerNetzeSmartMeterCustomConfigFlow(config_entries.ConfigFlow, domain=DO
         return WienerNetzeSmartMeterOptionsFlow(config_entry)
 
 
-class WienerNetzeSmartMeterOptionsFlow(config_entries.OptionsFlowWithReload):
+class WienerNetzeSmartMeterOptionsFlow(config_entries.OptionsFlow):
     """Handle options flow for Wiener Netze Smartmeter."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
