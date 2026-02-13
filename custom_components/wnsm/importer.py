@@ -68,7 +68,7 @@ class Importer:
             return None
         return start, _sum
 
-    async def async_import(self):
+    async def async_import(self, zaehlpunkt_response=None):
         # Query the statistics database for the last value
         # It is crucial to use get_instance here!
         last_inserted_stat = await get_instance(
@@ -84,11 +84,10 @@ class Importer:
         )
         _LOGGER.debug("Last inserted stat: %s" % last_inserted_stat)
         try:
-            await self.async_smartmeter.login()
-            zaehlpunkt = await (self.async_smartmeter.get_zaehlpunkt(self.zaehlpunkt))
+            zaehlpunkt = zaehlpunkt_response or await self.async_smartmeter.get_zaehlpunkt(self.zaehlpunkt)
 
             if not self.async_smartmeter.is_active(zaehlpunkt):
-                _LOGGER.debug("Smartmeter %s is not active" % zaehlpunkt)
+                _LOGGER.debug("Smartmeter %s is not active", zaehlpunkt)
                 return
 
             if not self.is_last_inserted_stat_valid(last_inserted_stat):
@@ -156,38 +155,51 @@ class Importer:
 
         bewegungsdaten = await self.async_smartmeter.get_bewegungsdaten(self.zaehlpunkt, start, end, self.granularity)
         _LOGGER.debug(f"Mapped historical data: {bewegungsdaten}")
-        if bewegungsdaten['unitOfMeasurement'] == 'WH':
+
+        unit = (bewegungsdaten.get("unitOfMeasurement") or self.unit_of_measurement or "").upper()
+        if unit == 'WH':
             factor = 1e-3
-        elif bewegungsdaten['unitOfMeasurement'] == 'KWH':
+        elif unit in ('KWH', 'KWHOUR'):
             factor = 1.0
         else:
-            raise NotImplementedError(f'Unit {bewegungsdaten["unitOfMeasurement"]}" is not yet implemented. Please report!')
+            _LOGGER.warning(
+                "Unexpected or missing unitOfMeasurement in bewegungsdaten (%s) for %s. Falling back to factor 1.0",
+                unit or "<missing>",
+                self.zaehlpunkt,
+            )
+            factor = 1.0
 
         dates = defaultdict(Decimal)
-        if 'values' not in bewegungsdaten:
-            raise ValueError("WienerNetze does not report historical data (yet)")
-        total_consumption = sum([v.get("wert", 0) for v in bewegungsdaten['values']])
+        values = bewegungsdaten.get('values')
+        if not isinstance(values, list):
+            _LOGGER.warning("WienerNetze does not report historical data list (yet) for %s", self.zaehlpunkt)
+            return total_usage
+
+        total_consumption = sum([v.get("wert", 0) or 0 for v in values])
         # Can actually check, if the whole batch can be skipped.
         if total_consumption == 0:
             _LOGGER.debug(f"Batch of data starting at {start} does not contain any bewegungsdaten. Seems there is nothing to import, yet.")
-            return
+            return total_usage
 
         last_ts = start
-        for value in bewegungsdaten['values']:
-            ts = dt_util.parse_datetime(value['zeitpunktVon'])
+        for value in values:
+            ts = dt_util.parse_datetime(value.get('zeitpunktVon'))
+            if ts is None:
+                _LOGGER.debug("Skipping historical value without zeitpunktVon: %s", value)
+                continue
             if ts < last_ts:
                 # This should prevent any issues with ambiguous values though...
                 _LOGGER.warning(f"Timestamp from API ({ts}) is less than previously collected timestamp ({last_ts}), ignoring value!")
                 continue
             last_ts = ts
-            if value['wert'] is None:
+            if value.get('wert') is None:
                 # Usually this means that the measurement is not yet in the WSTW database.
                 continue
-            reading = Decimal(value['wert'] * factor)
+            reading = Decimal(value.get('wert') * factor)
             if ts.minute % 15 != 0 or ts.second != 0 or ts.microsecond != 0:
                 _LOGGER.warning(f"Unexpected time detected in historic data: {value}")
             dates[ts.replace(minute=0)] += reading
-            if value['geschaetzt']:
+            if value.get('geschaetzt'):
                 _LOGGER.debug(f"Not seen that before: Estimated Value found for {ts}: {reading}")
 
         statistics = []
