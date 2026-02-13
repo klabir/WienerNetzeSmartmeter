@@ -22,6 +22,16 @@ from .utils import translate_dict
 
 _LOGGER = logging.getLogger(__name__)
 
+SCAN_INTERVAL_SELECTOR = selector.NumberSelector(
+    selector.NumberSelectorConfig(
+        min=1,
+        max=1440,
+        step=1,
+        mode=selector.NumberSelectorMode.BOX,
+        unit_of_measurement="min",
+    )
+)
+
 AUTH_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_USERNAME): cv.string,
