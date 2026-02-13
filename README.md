@@ -12,6 +12,14 @@
 This repo contains a custom component for [Home Assistant](https://www.home-assistant.io) for exposing a sensor
 providing information about a registered [WienerNetze Smartmeter](https://www.wienernetze.at/smartmeter).
 
+## Sensors
+
+The integration exposes one main energy sensor per Zählpunkt (total increasing meter reading), a daily
+consumption sensor that reports the latest DAY value, and a companion DAY reading-date timestamp sensor
+for clean UI display of the effective DAY date.
+
+Configuration options in the UI include scan interval (minutes) and an optional advanced DAY statistics import mode.
+
 ## FAQs
 [FAQs](https://github.com/DarwinsBuddy/WienerNetzeSmartmeter/discussions/19)
 
@@ -51,4 +59,3 @@ Special thanks to [platrysma](https://github.com/platysma)
 for providing me a starting point [vienna-smartmeter](https://github.com/platysma/vienna-smartmeter)
 and especially [florianL21](https://github.com/florianL21/)
 for his [fork](https://github.com/florianL21/vienna-smartmeter/network)
-

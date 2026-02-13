@@ -15,7 +15,7 @@ from .AsyncSmartmeter import AsyncSmartmeter
 from .api import Smartmeter
 from .api.constants import ValueType
 from .importer import Importer
-from .utils import before, today
+from .utils import before, today, build_reading_date_attributes
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -87,14 +87,17 @@ class WNSMSensor(SensorEntity):
             async_smartmeter = AsyncSmartmeter(self.hass, smartmeter)
             await async_smartmeter.login()
             zaehlpunkt_response = await async_smartmeter.get_zaehlpunkt(self.zaehlpunkt)
-            self._attr_extra_state_attributes = zaehlpunkt_response
-
+            reading_dates, self._attr_extra_state_attributes = build_reading_date_attributes(
+                zaehlpunkt_response
+            )
             if async_smartmeter.is_active(zaehlpunkt_response):
                 # Since the update is not exactly at midnight, both yesterday and the day before are tried to make sure a meter reading is returned
-                reading_dates = [before(today(), 1), before(today(), 2)]
                 for reading_date in reading_dates:
                     meter_reading = await async_smartmeter.get_meter_reading_from_historic_data(self.zaehlpunkt, reading_date, datetime.now())
-                    self._attr_native_value = meter_reading
+                    if meter_reading is not None:
+                        self._attr_native_value = meter_reading
+                        self._attr_extra_state_attributes["reading_date"] = reading_date.isoformat()
+                        break
                 importer = Importer(self.hass, async_smartmeter, self.zaehlpunkt, self.unit_of_measurement, self.granularity())
                 await importer.async_import()
             self._available = True
@@ -102,8 +105,8 @@ class WNSMSensor(SensorEntity):
         except TimeoutError as e:
             self._available = False
             _LOGGER.warning(
-                "Error retrieving data from smart meter api - Timeout: %s" % e)
+                "Error retrieving data from smart meter api - Timeout: %s", e)
         except RuntimeError as e:
             self._available = False
             _LOGGER.exception(
-                "Error retrieving data from smart meter api - Error: %s" % e)
+                "Error retrieving data from smart meter api - Error: %s", e)
