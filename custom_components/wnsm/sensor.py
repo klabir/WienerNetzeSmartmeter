@@ -3,7 +3,9 @@
 from datetime import timedelta
 
 from homeassistant import config_entries, core
+from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.const import CONF_SCAN_INTERVAL
+from homeassistant.helpers.event import async_track_time_interval
 
 from .const import CONF_ZAEHLPUNKTE, DEFAULT_SCAN_INTERVAL_MINUTES
 from .coordinator import WnsmDataUpdateCoordinator
@@ -20,6 +22,9 @@ async def async_setup_entry(
 ):
     """Setup sensors from a config entry created in the integrations UI."""
     runtime_data = config_entry.runtime_data
+    if runtime_data is None:
+        raise ConfigEntryNotReady("Runtime data unavailable during sensor setup")
+
     config = runtime_data.config
     async_smartmeter = runtime_data.async_smartmeter
 
@@ -28,6 +33,15 @@ async def async_setup_entry(
 
     coordinator = WnsmDataUpdateCoordinator(hass, config_entry, async_smartmeter, config)
     await coordinator.async_config_entry_first_refresh()
+
+
+    async def _async_run_imports(_now):
+        await coordinator.async_run_imports()
+
+    config_entry.async_on_unload(
+        async_track_time_interval(hass, _async_run_imports, timedelta(hours=1))
+    )
+    hass.async_create_task(coordinator.async_run_imports())
 
     wnsm_sensors = [
         WNSMSensor(coordinator, zp["zaehlpunktnummer"], scan_interval)

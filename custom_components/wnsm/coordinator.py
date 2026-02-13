@@ -11,16 +11,19 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_SCAN_INTERVAL
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.util import dt as dt_util
 
 from .AsyncSmartmeter import AsyncSmartmeter
 from .api.constants import ValueType
+from .api.errors import SmartmeterError
 from .const import CONF_ENABLE_DAY_STATISTICS_IMPORT, CONF_ZAEHLPUNKTE, DEFAULT_SCAN_INTERVAL_MINUTES
 from .day_processing import latest_day_point
 from .day_statistics_importer import DayStatisticsImporter
 from .importer import Importer
-from .utils import before, build_reading_date_attributes, today
+from .utils import build_reading_date_attributes
 
 _LOGGER = logging.getLogger(__name__)
+_IMPORT_MIN_INTERVAL = timedelta(hours=24)
 
 
 @dataclass(slots=True)
@@ -37,7 +40,7 @@ class ZaehlpunktData:
 
 
 class WnsmDataUpdateCoordinator(DataUpdateCoordinator[dict[str, ZaehlpunktData]]):
-    """Fetch shared data for all WNSM sensors in one update cycle."""
+    """Fetch shared sensor-state data for all WNSM sensors in one update cycle."""
 
     def __init__(
         self,
@@ -55,10 +58,12 @@ class WnsmDataUpdateCoordinator(DataUpdateCoordinator[dict[str, ZaehlpunktData]]
         )
         self._config = config
         self._async_smartmeter = async_smartmeter
+        self._last_import_run: dict[str, datetime] = {}
 
     async def _async_update_data(self) -> dict[str, ZaehlpunktData]:
         result: dict[str, ZaehlpunktData] = {}
-        now = datetime.now()
+        now = dt_util.now()
+
         for zp in self._config[CONF_ZAEHLPUNKTE]:
             zaehlpunkt = zp["zaehlpunktnummer"]
             try:
@@ -84,8 +89,8 @@ class WnsmDataUpdateCoordinator(DataUpdateCoordinator[dict[str, ZaehlpunktData]]
                             attributes["reading_date"] = reading_date.isoformat()
                             break
 
-                    start = before(today(), 1)
-                    end = today()
+                    end = dt_util.start_of_local_day(now)
+                    start = end - timedelta(days=1)
                     messwerte = await self._async_smartmeter.get_historic_data(
                         zaehlpunkt,
                         start,
@@ -98,18 +103,6 @@ class WnsmDataUpdateCoordinator(DataUpdateCoordinator[dict[str, ZaehlpunktData]]
                         day_reading_date = latest.reading_date
                         day_source_timestamp = latest.source_timestamp
 
-                    importer = Importer(
-                        self.hass,
-                        self._async_smartmeter,
-                        zaehlpunkt,
-                        "kWh",
-                    )
-                    await importer.async_import(zaehlpunkt_response=zaehlpunkt_response)
-
-                    if self._config.get(CONF_ENABLE_DAY_STATISTICS_IMPORT, False):
-                        day_importer = DayStatisticsImporter(self.hass, self._async_smartmeter, zaehlpunkt)
-                        await day_importer.async_import(start, end)
-
                 result[zaehlpunkt] = ZaehlpunktData(
                     available=True,
                     attributes=attributes,
@@ -119,8 +112,8 @@ class WnsmDataUpdateCoordinator(DataUpdateCoordinator[dict[str, ZaehlpunktData]]
                     day_reading_date=day_reading_date,
                     day_source_timestamp=day_source_timestamp,
                 )
-            except Exception as err:  # pylint: disable=broad-except
-                _LOGGER.exception("Failed update for zaehlpunkt %s", zaehlpunkt)
+            except (SmartmeterError, RuntimeError, TimeoutError, ValueError) as err:
+                _LOGGER.exception("Failed update for zaehlpunkt %s: %s", zaehlpunkt, err)
                 prev = self.data.get(zaehlpunkt) if self.data else None
                 if prev is not None:
                     result[zaehlpunkt] = ZaehlpunktData(
@@ -143,3 +136,36 @@ class WnsmDataUpdateCoordinator(DataUpdateCoordinator[dict[str, ZaehlpunktData]]
                         day_source_timestamp=None,
                     )
         return result
+
+    async def async_run_imports(self) -> None:
+        """Run long-term statistics imports outside coordinator refresh path."""
+        now_utc = dt_util.utcnow()
+
+        for zp in self._config[CONF_ZAEHLPUNKTE]:
+            zaehlpunkt = zp["zaehlpunktnummer"]
+            last_import_run = self._last_import_run.get(zaehlpunkt)
+            if last_import_run is not None and (now_utc - last_import_run) < _IMPORT_MIN_INTERVAL:
+                continue
+
+            try:
+                zaehlpunkt_response = await self._async_smartmeter.get_zaehlpunkt(zaehlpunkt)
+                if not self._async_smartmeter.is_active(zaehlpunkt_response):
+                    continue
+
+                importer = Importer(
+                    self.hass,
+                    self._async_smartmeter,
+                    zaehlpunkt,
+                    "kWh",
+                )
+                await importer.async_import(zaehlpunkt_response=zaehlpunkt_response)
+
+                if self._config.get(CONF_ENABLE_DAY_STATISTICS_IMPORT, False):
+                    end = dt_util.start_of_local_day(dt_util.now())
+                    start = end - timedelta(days=1)
+                    day_importer = DayStatisticsImporter(self.hass, self._async_smartmeter, zaehlpunkt)
+                    await day_importer.async_import(start, end)
+
+                self._last_import_run[zaehlpunkt] = now_utc
+            except (SmartmeterError, RuntimeError, TimeoutError, ValueError) as err:
+                _LOGGER.exception("Failed statistics import for zaehlpunkt %s: %s", zaehlpunkt, err)
