@@ -12,7 +12,7 @@ from homeassistant.components.sensor import (
     PLATFORM_SCHEMA
 )
 from homeassistant.const import (
-    CONF_USERNAME,
+    CONF_DEVICE_ID,
     CONF_PASSWORD,
     CONF_DEVICE_ID,
     CONF_SCAN_INTERVAL,
@@ -51,7 +51,12 @@ async def async_setup_entry(
     global SCAN_INTERVAL
     SCAN_INTERVAL = timedelta(minutes=scan_interval_minutes)
     wnsm_sensors = [
-        WNSMSensor(config[CONF_USERNAME], config[CONF_PASSWORD], zp["zaehlpunktnummer"])
+        WNSMSensor(
+            config[CONF_USERNAME],
+            config[CONF_PASSWORD],
+            zp["zaehlpunktnummer"],
+            scan_interval=scan_interval,
+        )
         for zp in config[CONF_ZAEHLPUNKTE]
     ]
     wnsm_sensors.extend(
