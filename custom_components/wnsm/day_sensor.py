@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
@@ -81,11 +81,7 @@ class WNSMDailySensor(SensorEntity):
             return None, None
 
         latest_zeitbis = dt_util.parse_datetime(latest.get("zeitBis") or latest.get("zeitVon"))
-        reading_date = (
-            (latest_zeitbis - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
-            if latest_zeitbis is not None
-            else None
-        )
+        reading_date = latest_zeitbis.isoformat() if latest_zeitbis is not None else None
         return wert * factor, reading_date
 
     async def async_update(self):
