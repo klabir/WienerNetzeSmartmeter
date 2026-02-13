@@ -12,15 +12,15 @@ from homeassistant.components.sensor import (
     PLATFORM_SCHEMA
 )
 from homeassistant.const import CONF_SCAN_INTERVAL
-from homeassistant.core import DOMAIN
-from homeassistant.helpers.typing import (
-    ConfigType,
-    DiscoveryInfoType,
-)
 from .const import (
     CONF_ENABLE_DAY_STATISTICS_IMPORT,
     CONF_ZAEHLPUNKTE,
     DEFAULT_SCAN_INTERVAL_MINUTES,
+    DOMAIN,
+)
+from homeassistant.helpers.typing import (
+    ConfigType,
+    DiscoveryInfoType,
 )
 from .day_sensor import WNSMDailySensor
 from .wnsm_sensor import WNSMSensor
