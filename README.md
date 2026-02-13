@@ -17,6 +17,8 @@ providing information about a registered [WienerNetze Smartmeter](https://www.wi
 The integration exposes one main energy sensor per Zählpunkt (total increasing meter reading) and a daily
 consumption sensor that reports the latest DAY value.
 
+Configuration options in the UI include scan interval (minutes) and an optional advanced DAY statistics import mode.
+
 ## FAQs
 [FAQs](https://github.com/DarwinsBuddy/WienerNetzeSmartmeter/discussions/19)
 

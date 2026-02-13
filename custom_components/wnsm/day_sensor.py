@@ -8,6 +8,7 @@ from .AsyncSmartmeter import AsyncSmartmeter
 from .api import Smartmeter
 from .api.constants import ValueType
 from .day_processing import latest_day_point
+from .day_statistics_importer import DayStatisticsImporter
 from .utils import before, today
 
 _LOGGER = logging.getLogger(__name__)
@@ -16,11 +17,18 @@ _LOGGER = logging.getLogger(__name__)
 class WNSMDailySensor(SensorEntity):
     """Representation of a daily consumption sensor."""
 
-    def __init__(self, username: str, password: str, zaehlpunkt: str) -> None:
+    def __init__(
+        self,
+        username: str,
+        password: str,
+        zaehlpunkt: str,
+        enable_day_statistics_import: bool = False,
+    ) -> None:
         super().__init__()
         self.username = username
         self.password = password
         self.zaehlpunkt = zaehlpunkt
+        self._enable_day_statistics_import = enable_day_statistics_import
 
         self._attr_native_value: int | float | None = None
         self._attr_name = f"{zaehlpunkt} Day"
@@ -78,6 +86,10 @@ class WNSMDailySensor(SensorEntity):
                     self._attr_extra_state_attributes["reading_date"] = latest.reading_date
                 else:
                     _LOGGER.debug("No usable DAY values returned for %s", self.zaehlpunkt)
+
+                if self._enable_day_statistics_import:
+                    importer = DayStatisticsImporter(self.hass, async_smartmeter, self.zaehlpunkt)
+                    await importer.async_import(start, end)
             self._available = True
             self._updatets = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
         except TimeoutError as e:
