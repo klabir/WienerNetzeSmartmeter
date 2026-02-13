@@ -22,7 +22,13 @@ async def async_setup_entry(
     async_add_entities,
 ):
     """Setup sensors from a config entry created in the integrations UI."""
-    config = hass.data[DOMAIN][config_entry.entry_id]
+    runtime_data = config_entry.runtime_data
+    if runtime_data is not None and hasattr(runtime_data, "config"):
+        config = runtime_data.config
+    else:
+        # Backward compatibility fallback.
+        config = hass.data[DOMAIN][config_entry.entry_id]
+
     scan_interval_minutes = config.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL_MINUTES)
     scan_interval = timedelta(minutes=scan_interval_minutes)
 

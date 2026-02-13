@@ -1,4 +1,7 @@
 """Set up the Wiener Netze SmartMeter Integration component."""
+
+from dataclasses import dataclass
+
 from homeassistant import config_entries, core
 from homeassistant.const import CONF_SCAN_INTERVAL
 
@@ -9,15 +12,27 @@ from .const import (
 )
 
 
+@dataclass(slots=True)
+class WnsmRuntimeData:
+    """Runtime configuration cached per config entry."""
+
+    config: dict
+
+
 async def async_setup_entry(
     hass: core.HomeAssistant,
     entry: config_entries.ConfigEntry,
 ) -> bool:
     """Set up platform from a ConfigEntry."""
-    hass.data.setdefault(DOMAIN, {})
     config = {**entry.data, **entry.options}
     config.setdefault(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL_MINUTES)
     config.setdefault(CONF_ENABLE_DAY_STATISTICS_IMPORT, False)
+
+    # Modern runtime storage for HA integrations.
+    entry.runtime_data = WnsmRuntimeData(config=config)
+
+    # Compatibility cache for existing platform setup code paths.
+    hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = config
 
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
@@ -36,6 +51,7 @@ async def async_unload_entry(
     unload_ok = await hass.config_entries.async_unload_platforms(entry, ["sensor"])
     if unload_ok:
         hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
+        entry.runtime_data = None
     return unload_ok
 
 
