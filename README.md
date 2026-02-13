@@ -12,6 +12,21 @@
 This repo contains a custom component for [Home Assistant](https://www.home-assistant.io) for exposing a sensor
 providing information about a registered [WienerNetze Smartmeter](https://www.wienernetze.at/smartmeter).
 
+## Sensors
+
+The integration exposes one main energy sensor per Zählpunkt (total increasing meter reading), a daily
+consumption sensor that reports the latest DAY value, a companion DAY reading-date timestamp sensor,
+and a companion METER_READ reading-date timestamp sensor for clean UI display of effective dates.
+
+Configuration options in the UI include scan interval (minutes) and an optional advanced DAY statistics import mode.
+
+| Sensor | Wertetyp source | State | Date context |
+|---|---|---|---|
+| `<zaehlpunkt>` | `METER_READ` | latest total meter reading (kWh) | `reading_date`, `yesterday`, `day_before_yesterday` attributes |
+| `<zaehlpunkt> Day` | `DAY` | latest daily value (kWh) | `reading_date` attribute from latest DAY record |
+| `<zaehlpunkt> Day Reading Date` | `DAY` | timestamp of selected DAY value | same date attributes as companion metadata |
+| `<zaehlpunkt> Meter Read Reading Date` | `METER_READ` | timestamp of selected meter-read value | same date attributes as companion metadata |
+
 ## FAQs
 [FAQs](https://github.com/DarwinsBuddy/WienerNetzeSmartmeter/discussions/19)
 
@@ -29,7 +44,7 @@ Copy `<project-dir>/custom_components/wnsm` into `<home-assistant-root>/config/c
 
 ## Configure
 
-You can choose between ui configuration or manual (by adding your credentials to `configuration.yaml` and `secrets.yaml` resp.)
+Configure the integration via the Home Assistant UI.
 After successful configuration you can add sensors to your favourite dashboard, or even to your energy dashboard to track your total consumption.
 
 ### UI
@@ -40,8 +55,6 @@ After successful configuration you can add sensors to your favourite dashboard, 
 <img src="./doc/wnsm5.png" alt="Authenticate with your credentials" width="500"/>
 <img src="./doc/wnsm6.png" alt="Observe that all your smartmeters got imported" width="500"/>
 
-### Manual
-See [Example configuration files](https://github.com/DarwinsBuddy/WienerNetzeSmartmeter/blob/main/example/configuration.yaml)
 ## Copyright
 
 This integration uses the API of https://www.wienernetze.at/smartmeter
@@ -51,4 +64,3 @@ Special thanks to [platrysma](https://github.com/platysma)
 for providing me a starting point [vienna-smartmeter](https://github.com/platysma/vienna-smartmeter)
 and especially [florianL21](https://github.com/florianL21/)
 for his [fork](https://github.com/florianL21/vienna-smartmeter/network)
-

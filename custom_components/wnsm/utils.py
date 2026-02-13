@@ -5,6 +5,7 @@ from __future__ import annotations
 from functools import reduce
 from datetime import timezone, timedelta, datetime
 import logging
+from typing import Any
 
 
 def today(tz: None | timezone = None) -> datetime:
@@ -21,6 +22,19 @@ def before(timestamp=None, days=1) -> datetime:
     if timestamp is None:
         timestamp = today()
     return timestamp - timedelta(days=days)
+
+
+def build_reading_date_attributes(zaehlpunkt_response: dict[str, Any]) -> tuple[list[datetime], dict[str, Any]]:
+    """Build consistent reading-date related attributes for sensors."""
+    reading_dates = [before(today(), 1), before(today(), 2)]
+    attributes = {
+        **zaehlpunkt_response,
+        "reading_dates": [reading_date.isoformat() for reading_date in reading_dates],
+        "reading_date": None,
+        "yesterday": reading_dates[0].isoformat(),
+        "day_before_yesterday": reading_dates[1].isoformat(),
+    }
+    return reading_dates, attributes
 
 
 def strint(string: str) -> int | None:
@@ -56,7 +70,7 @@ def dict_path(path: str, dictionary: dict) -> str | None:
         )
     except KeyError as exception:
         logging.warning("Could not find key '%s' in response", exception.args[0])
-    except Exception as exception:  # pylint: disable=broad-except
+    except (TypeError, IndexError) as exception:
         logging.exception(exception)
     return None
 
