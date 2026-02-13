@@ -68,7 +68,7 @@ class Importer:
             return None
         return start, _sum
 
-    async def async_import(self):
+    async def async_import(self, zaehlpunkt_response=None):
         # Query the statistics database for the last value
         # It is crucial to use get_instance here!
         last_inserted_stat = await get_instance(
@@ -84,12 +84,11 @@ class Importer:
         )
         _LOGGER.debug("Last inserted stat: %s" % last_inserted_stat)
         try:
-            await self.async_smartmeter.login()
-            zaehlpunkt = await (self.async_smartmeter.get_zaehlpunkt(self.zaehlpunkt))
+            zaehlpunkt = zaehlpunkt_response or await self.async_smartmeter.get_zaehlpunkt(self.zaehlpunkt)
 
             if not self.async_smartmeter.is_active(zaehlpunkt):
-                _LOGGER.debug("Smartmeter %s is not active" % zaehlpunkt)
-                return total_usage
+                _LOGGER.debug("Smartmeter %s is not active", zaehlpunkt)
+                return
 
             if not self.is_last_inserted_stat_valid(last_inserted_stat):
                 # No previous data - start from scratch
