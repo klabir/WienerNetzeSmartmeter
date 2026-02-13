@@ -7,7 +7,7 @@ from .AsyncSmartmeter import AsyncSmartmeter
 from .api import Smartmeter
 from .api.constants import ValueType
 from .day_processing import latest_day_point
-from .utils import before, today
+from .utils import before, today, build_reading_date_attributes
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -46,14 +46,9 @@ class WNSMDayReadingDateSensor(SensorEntity):
             async_smartmeter = AsyncSmartmeter(self.hass, smartmeter)
             await async_smartmeter.login()
             zaehlpunkt_response = await async_smartmeter.get_zaehlpunkt(self.zaehlpunkt)
-            reading_dates = [before(today(), 1), before(today(), 2)]
-            self._attr_extra_state_attributes = {
-                **zaehlpunkt_response,
-                "reading_dates": [reading_date.isoformat() for reading_date in reading_dates],
-                "reading_date": None,
-                "yesterday": reading_dates[0].isoformat(),
-                "day_before_yesterday": reading_dates[1].isoformat(),
-            }
+            reading_dates, self._attr_extra_state_attributes = build_reading_date_attributes(
+                zaehlpunkt_response
+            )
 
             if async_smartmeter.is_active(zaehlpunkt_response):
                 start = before(today(), 1)
