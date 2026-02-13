@@ -13,6 +13,7 @@ from .const import (
 )
 from .day_sensor import WNSMDailySensor
 from .day_reading_date_sensor import WNSMDayReadingDateSensor
+from .meter_read_reading_date_sensor import WNSMMeterReadReadingDateSensor
 from .wnsm_sensor import WNSMSensor
 
 
@@ -60,6 +61,18 @@ async def async_setup_entry(
     wnsm_sensors.extend(
         [
             WNSMDayReadingDateSensor(
+                async_smartmeter,
+                config["username"],
+                config["password"],
+                zp["zaehlpunktnummer"],
+                scan_interval,
+            )
+            for zp in config[CONF_ZAEHLPUNKTE]
+        ]
+    )
+    wnsm_sensors.extend(
+        [
+            WNSMMeterReadReadingDateSensor(
                 async_smartmeter,
                 config["username"],
                 config["password"],

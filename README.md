@@ -15,8 +15,8 @@ providing information about a registered [WienerNetze Smartmeter](https://www.wi
 ## Sensors
 
 The integration exposes one main energy sensor per Zählpunkt (total increasing meter reading), a daily
-consumption sensor that reports the latest DAY value, and a companion DAY reading-date timestamp sensor
-for clean UI display of the effective DAY date.
+consumption sensor that reports the latest DAY value, a companion DAY reading-date timestamp sensor,
+and a companion METER_READ reading-date timestamp sensor for clean UI display of effective dates.
 
 Configuration options in the UI include scan interval (minutes) and an optional advanced DAY statistics import mode.
 
