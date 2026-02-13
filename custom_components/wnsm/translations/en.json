@@ -1,5 +1,8 @@
 {
   "config": {
+    "abort": {
+      "already_configured": "This account is already configured"
+    },
     "error": {
       "auth": "Username/password invalid",
       "connection_error": "Unable to connect"
@@ -11,7 +14,20 @@
         "description": "Enter your Wiener Netze Smartmeter credentials",
         "data": {
           "username": "Username",
-          "password": "Password"
+          "password": "Password",
+          "scan_interval": "Scan interval (minutes)",
+          "enable_day_statistics_import": "Enable DAY statistics import"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Wiener Netze Smartmeter options",
+        "data": {
+          "scan_interval": "Scan interval (minutes)",
+          "enable_day_statistics_import": "Enable DAY statistics import"
         }        
       }
     }
