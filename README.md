@@ -24,6 +24,13 @@ and a companion METER_READ reading-date timestamp sensor for clean UI display of
 
 Configuration options in the UI include scan interval (minutes) and an optional advanced DAY statistics import mode.
 
+| Sensor | Wertetyp source | State | Date context |
+|---|---|---|---|
+| `<zaehlpunkt>` | `METER_READ` | latest total meter reading (kWh) | `reading_date`, `yesterday`, `day_before_yesterday` attributes |
+| `<zaehlpunkt> Day` | `DAY` | latest daily value (kWh) | `reading_date` attribute from latest DAY record |
+| `<zaehlpunkt> Day Reading Date` | `DAY` | timestamp of selected DAY value | same date attributes as companion metadata |
+| `<zaehlpunkt> Meter Read Reading Date` | `METER_READ` | timestamp of selected meter-read value | same date attributes as companion metadata |
+
 ## FAQs
 [FAQs](https://github.com/DarwinsBuddy/WienerNetzeSmartmeter/discussions/19)
 
