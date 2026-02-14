@@ -20,6 +20,24 @@ and a companion METER_READ reading-date timestamp sensor for clean UI display of
 
 Configuration options in the UI include scan interval (minutes) and an optional advanced DAY statistics import mode.
 
+### Entity and statistics overview by Zählpunkt and Wertetyp
+
+For each active **Zählpunkt**, the integration creates the following Home Assistant items:
+
+| Area | Wertetyp source | What gets created | Value shown in HA | Unique/statistic ID pattern |
+|---|---|---|---|---|
+| Sensor entity | `METER_READ` | Main energy sensor | Latest meter reading (kWh), shown as total-increasing energy sensor | `unique_id: <zaehlpunkt>` |
+| Sensor entity | `DAY` | Daily consumption sensor | Latest daily consumption (kWh) | `unique_id: <zaehlpunkt>_day` |
+| Sensor entity | `DAY` | DAY reading-date timestamp sensor | Source timestamp of the latest DAY value | `unique_id: <zaehlpunkt>_day_reading_date` |
+| Sensor entity | `METER_READ` | METER_READ reading-date timestamp sensor | Effective reading date for the latest METER_READ value | `unique_id: <zaehlpunkt>_meter_read_reading_date` |
+| Recorder statistics (long-term) | Main importer (`METER_READ`/default granularity path) | Long-term statistics series for the main sensor | Imported into recorder statistics for Energy/History usage | `statistic_id: wnsm:<zaehlpunkt-lowercase>` |
+| Recorder statistics (long-term, optional) | `DAY` | Additional DAY long-term statistics series (enabled via option) | One statistic point per day (`state = day kWh`, `sum = None`) | `statistic_id: wnsm:<slugified-zaehlpunkt>_day` |
+
+#### Important notes
+
+- Enabling **DAY statistics import** does **not** create extra entities. It adds an extra recorder/long-term statistics series for DAY values.
+- With **2 Zählpunkte**, you will usually see **8 entities** (4 per Zählpunkt). If DAY stats import is enabled, you also get **2 extra long-term statistics series** (one per Zählpunkt) in addition to the main statistics series.
+
 ## FAQs
 [FAQs](https://github.com/DarwinsBuddy/WienerNetzeSmartmeter/discussions/19)
 
