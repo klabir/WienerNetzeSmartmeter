@@ -7,11 +7,15 @@ from datetime import timezone, timedelta, datetime
 import logging
 from typing import Any
 
+from homeassistant.util import dt as dt_util
+
 
 def today(tz: None | timezone = None) -> datetime:
     """
     today's timestamp (start of day)
     """
+    if tz is None:
+        tz = dt_util.get_time_zone(dt_util.DEFAULT_TIME_ZONE) or dt_util.UTC
     return datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
 
 

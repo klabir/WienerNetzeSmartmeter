@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.const import UnitOfEnergy
+from homeassistant.exceptions import HomeAssistantError
 
 from .AsyncSmartmeter import AsyncSmartmeter
 from .api import Smartmeter
@@ -104,3 +105,6 @@ class WNSMDailySensor(SensorEntity):
         except RuntimeError as e:
             self._available = False
             _LOGGER.exception("Error retrieving data from smart meter api - Error: %s", e)
+        except HomeAssistantError as e:
+            self._available = False
+            _LOGGER.exception("Error importing day statistics - Error: %s", e)
