@@ -54,10 +54,30 @@ Copy `<project-dir>/custom_components/wnsm` into `<home-assistant-root>/config/c
 3. ...
 4. Profit!
 
-## Configure
+## Configuration
 
-Configure the integration via the Home Assistant UI.
-After successful configuration you can add sensors to your favourite dashboard, or even to your energy dashboard to track your total consumption.
+Configure the integration via the Home Assistant UI and select your Zählpunkte during setup.
+
+### Setup behavior (current implementation)
+
+- The integration creates **4 entities per active Zählpunkt**:
+  1. Main energy sensor (`METER_READ`, total increasing)
+  2. Daily consumption sensor (`DAY`, measurement)
+  3. DAY reading-date timestamp sensor
+  4. METER_READ reading-date timestamp sensor
+- With 2 Zählpunkte, this results in **8 entities**.
+
+### Options
+
+- **Scan interval (minutes):** polling interval for sensor updates.
+- **Enable DAY statistics import to long-term recorder:** enabled by default.  
+  When enabled, the integration imports an additional DAY long-term statistics series (`wnsm:<slugified-zaehlpunkt>_day`).
+
+### Long-term statistics and Energy Dashboard
+
+- Main sensor long-term statistics (`wnsm:<zaehlpunkt-lowercase>`) are imported using the effective `METER_READ` reading date timestamp.
+- DAY long-term statistics are optional and imported as daily points (`state=day kWh`, `sum=None`).
+- Use the main sensor/statistics for cumulative energy tracking, and DAY for day-level comparison.
 
 ### UI
 <img src="./doc/wnsm1.png" alt="Settings" width="500"/>
