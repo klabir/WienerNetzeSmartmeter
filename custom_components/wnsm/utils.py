@@ -70,7 +70,7 @@ def dict_path(path: str, dictionary: dict) -> str | None:
         )
     except KeyError as exception:
         logging.warning("Could not find key '%s' in response", exception.args[0])
-    except (TypeError, IndexError) as exception:
+    except Exception as exception:  # pylint: disable=broad-except
         logging.exception(exception)
     return None
 
