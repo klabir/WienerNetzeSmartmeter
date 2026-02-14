@@ -89,7 +89,7 @@ class Importer:
 
             if not self.async_smartmeter.is_active(zaehlpunkt):
                 _LOGGER.debug("Smartmeter %s is not active" % zaehlpunkt)
-                return total_usage
+                return
 
             if not self.is_last_inserted_stat_valid(last_inserted_stat):
                 # No previous data - start from scratch

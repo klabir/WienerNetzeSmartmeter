@@ -9,7 +9,6 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import UnitOfEnergy
-from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import slugify
 
 from .AsyncSmartmeter import AsyncSmartmeter
@@ -17,7 +16,7 @@ from .api import Smartmeter
 from .api.constants import ValueType
 from .importer import Importer
 from .const import DEFAULT_SCAN_INTERVAL_MINUTES
-from .utils import before, today, build_reading_date_attributes
+from .meter_read_logic import async_get_latest_meter_read_payload
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -99,19 +98,14 @@ class WNSMSensor(SensorEntity):
             async_smartmeter = self._get_async_smartmeter()
             await async_smartmeter.login()
             zaehlpunkt_response = await async_smartmeter.get_zaehlpunkt(self.zaehlpunkt)
-            reading_dates, self._attr_extra_state_attributes = build_reading_date_attributes(
-                zaehlpunkt_response
-            )
             if async_smartmeter.is_active(zaehlpunkt_response):
-                # Since update is not exactly at midnight, both yesterday and day before are tried.
-                for reading_date in reading_dates:
-                    meter_reading = await async_smartmeter.get_meter_reading_from_historic_data(
-                        self.zaehlpunkt, reading_date, datetime.now()
-                    )
-                    if meter_reading is not None:
-                        self._attr_native_value = meter_reading
-                        self._attr_extra_state_attributes["reading_date"] = reading_date.isoformat()
-                        break
+                meter_reading, self._attr_extra_state_attributes = await async_get_latest_meter_read_payload(
+                    async_smartmeter,
+                    self.zaehlpunkt,
+                    zaehlpunkt_response,
+                )
+                if meter_reading is not None:
+                    self._attr_native_value = meter_reading
                 importer = Importer(
                     self.hass,
                     async_smartmeter,

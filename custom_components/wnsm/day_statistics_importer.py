@@ -6,6 +6,7 @@ from homeassistant.components.recorder.models import StatisticData, StatisticMet
 from homeassistant.components.recorder.statistics import async_add_external_statistics, get_last_statistics
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
+from homeassistant.util import slugify
 
 from .AsyncSmartmeter import AsyncSmartmeter
 from .api.constants import ValueType
@@ -31,7 +32,7 @@ class DayStatisticsImporter:
         self.hass = hass
         self.async_smartmeter = async_smartmeter
         self.zaehlpunkt = zaehlpunkt
-        self.id = f"{DOMAIN}:{zaehlpunkt.lower()}:day"
+        self.id = f"{DOMAIN}:{slugify(zaehlpunkt)}_day"
 
     def get_statistics_metadata(self) -> StatisticMetaData:
         return StatisticMetaData(
