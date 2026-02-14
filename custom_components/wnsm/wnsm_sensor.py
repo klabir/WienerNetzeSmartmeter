@@ -110,10 +110,19 @@ class WNSMSensor(SensorEntity):
                     self.hass,
                     async_smartmeter,
                     self.zaehlpunkt,
-                    self.unit_of_measurement,
-                    self.granularity(),
+                    zaehlpunkt_response,
                 )
-                await importer.async_import()
+                if meter_reading is not None:
+                    self._attr_native_value = meter_reading
+                    reading_date = self._attr_extra_state_attributes.get("reading_date")
+                    importer = Importer(
+                        self.hass,
+                        async_smartmeter,
+                        self.zaehlpunkt,
+                        self.unit_of_measurement,
+                        self.granularity(),
+                    )
+                    await importer.async_import_meter_read(reading_date, meter_reading)
             self._available = True
             self._updatets = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
         except TimeoutError as e:

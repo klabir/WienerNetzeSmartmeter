@@ -124,6 +124,70 @@ class Importer:
         except RuntimeError as e:
             _LOGGER.exception("Error retrieving data from smart meter api - Error: %s" % e)
 
+    async def async_import_meter_read(self, reading_date: str | None, meter_reading: int | float) -> None:
+        """Import one aligned METER_READ point using the provided reading timestamp."""
+        if reading_date is None:
+            _LOGGER.debug("Skipping import for %s: reading_date is missing", self.zaehlpunkt)
+            return
+
+        start = dt_util.parse_datetime(reading_date)
+        if start is None:
+            _LOGGER.warning("Skipping import for %s: invalid reading_date '%s'", self.zaehlpunkt, reading_date)
+            return
+        if start.tzinfo is None:
+            _LOGGER.warning("Skipping import for %s: reading_date must be timezone-aware (%s)", self.zaehlpunkt, reading_date)
+            return
+
+        last_inserted_stat = await get_instance(self.hass).async_add_executor_job(
+            get_last_statistics,
+            self.hass,
+            1,
+            self.id,
+            True,
+            {"sum", "state"},
+        )
+
+        last_sum = Decimal(0)
+        last_state = None
+        if len(last_inserted_stat) == 1 and len(last_inserted_stat.get(self.id, [])) == 1:
+            last_entry = last_inserted_stat[self.id][0]
+            raw_sum = last_entry.get("sum")
+            raw_state = last_entry.get("state")
+            raw_end = last_entry.get("end")
+
+            if raw_end is not None:
+                if isinstance(raw_end, (int, float)):
+                    raw_end = dt_util.utc_from_timestamp(raw_end)
+                elif isinstance(raw_end, str):
+                    raw_end = dt_util.parse_datetime(raw_end)
+                if isinstance(raw_end, datetime) and start <= raw_end:
+                    _LOGGER.debug("Skipping import for %s: reading_date %s is not newer than last end %s", self.zaehlpunkt, start, raw_end)
+                    return
+
+            if raw_sum is not None:
+                last_sum = Decimal(str(raw_sum))
+            if raw_state is not None:
+                last_state = Decimal(str(raw_state))
+
+        current_reading = Decimal(str(meter_reading))
+        if last_state is None:
+            usage = Decimal(0)
+        else:
+            usage = current_reading - last_state
+            if usage < 0:
+                _LOGGER.warning(
+                    "Detected decreasing METER_READ value for %s (previous=%s, current=%s). Ignoring delta.",
+                    self.zaehlpunkt,
+                    last_state,
+                    current_reading,
+                )
+                usage = Decimal(0)
+
+        statistics = [
+            StatisticData(start=start, sum=last_sum + usage, state=float(current_reading))
+        ]
+        async_add_external_statistics(self.hass, self.get_statistics_metadata(), statistics)
+
     def get_statistics_metadata(self):
         return StatisticMetaData(
             source=DOMAIN,
