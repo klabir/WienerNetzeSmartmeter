@@ -42,16 +42,6 @@ Copy `<project-dir>/custom_components/wnsm` into `<home-assistant-root>/config/c
 
 ### HACS
 1. Search for `Wiener Netze Smart Meter` or `wnsm` in HACS
-
-## Codex PR push steps
-
-If your Codex run created local commits and PR metadata, push the branch to GitHub:
-
-```bash
-git push -u origin work
-```
-
-Then open a GitHub Pull Request from `work` to `main`.
 2. Install
 3. ...
 4. Profit!
