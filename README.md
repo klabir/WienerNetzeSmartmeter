@@ -9,6 +9,10 @@
 
 ## About 
 
+## Version
+
+2.0
+
 This repo contains a custom component for [Home Assistant](https://www.home-assistant.io) for exposing a sensor
 providing information about a registered [WienerNetze Smartmeter](https://www.wienernetze.at/smartmeter).
 
