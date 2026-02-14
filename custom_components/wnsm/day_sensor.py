@@ -8,7 +8,7 @@ from homeassistant.exceptions import HomeAssistantError
 from .AsyncSmartmeter import AsyncSmartmeter
 from .api import Smartmeter
 from .api.constants import ValueType
-from .day_processing import latest_day_point
+from .day_processing import extract_day_points, latest_day_point
 from .day_statistics_importer import DayStatisticsImporter
 from .const import DEFAULT_SCAN_INTERVAL_MINUTES
 from .utils import before, today, build_reading_date_attributes
@@ -75,7 +75,7 @@ class WNSMDailySensor(SensorEntity):
             async_smartmeter = self._get_async_smartmeter()
             await async_smartmeter.login()
             zaehlpunkt_response = await async_smartmeter.get_zaehlpunkt(self.zaehlpunkt)
-            reading_dates, self._attr_extra_state_attributes = build_reading_date_attributes(
+            _, self._attr_extra_state_attributes = build_reading_date_attributes(
                 zaehlpunkt_response
             )
             if async_smartmeter.is_active(zaehlpunkt_response):
@@ -87,6 +87,12 @@ class WNSMDailySensor(SensorEntity):
                     end,
                     ValueType.DAY,
                 )
+                points = sorted(
+                    extract_day_points(messwerte), key=lambda point: point.source_timestamp, reverse=True
+                )
+                self._attr_extra_state_attributes["messwert1"] = points[0].value_kwh if len(points) > 0 else None
+                self._attr_extra_state_attributes["messwert2"] = points[1].value_kwh if len(points) > 1 else None
+
                 latest = latest_day_point(messwerte)
                 if latest is not None:
                     self._attr_native_value = latest.value_kwh
