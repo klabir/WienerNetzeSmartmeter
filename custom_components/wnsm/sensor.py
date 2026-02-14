@@ -65,7 +65,7 @@ async def async_setup_entry(
                 config["username"],
                 config["password"],
                 zp["zaehlpunktnummer"],
-                config.get(CONF_ENABLE_DAY_STATISTICS_IMPORT, False),
+                config.get(CONF_ENABLE_DAY_STATISTICS_IMPORT, True),
                 scan_interval,
             )
             for zp in config[CONF_ZAEHLPUNKTE]
