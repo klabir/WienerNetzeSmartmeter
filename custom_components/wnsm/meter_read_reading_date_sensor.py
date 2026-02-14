@@ -2,6 +2,7 @@ import logging
 from datetime import datetime, timedelta
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
+from homeassistant.util import dt as dt_util
 
 from .AsyncSmartmeter import AsyncSmartmeter
 from .api import Smartmeter
@@ -70,8 +71,11 @@ class WNSMMeterReadReadingDateSensor(SensorEntity):
                         self.zaehlpunkt, reading_date, datetime.now()
                     )
                     if meter_reading is not None:
-                        self._attr_native_value = reading_date
-                        self._attr_extra_state_attributes["reading_date"] = reading_date.isoformat()
+                        normalized_reading_date = reading_date
+                        if normalized_reading_date.tzinfo is None:
+                            normalized_reading_date = normalized_reading_date.replace(tzinfo=dt_util.UTC)
+                        self._attr_native_value = normalized_reading_date
+                        self._attr_extra_state_attributes["reading_date"] = normalized_reading_date.isoformat()
                         break
                 else:
                     _LOGGER.debug(
