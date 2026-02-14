@@ -15,7 +15,7 @@ providing information about a registered [WienerNetze Smartmeter](https://www.wi
 ## Sensors
 
 The integration exposes one main energy sensor per Zählpunkt (total increasing meter reading), an
-additional main daily snapshot sensor (same meter-read source but measurement-style display), a daily
+additional main daily snapshot sensor (measurement-style, reading-date aligned), a daily
 consumption sensor that reports the latest DAY value, a companion DAY reading-date timestamp sensor,
 and a companion METER_READ reading-date timestamp sensor for clean UI display of effective dates.
 
@@ -28,16 +28,18 @@ For each active **Zählpunkt**, the integration creates the following Home Assis
 | Area | Wertetyp source | What gets created | Value shown in HA | Unique/statistic ID pattern |
 |---|---|---|---|---|
 | Sensor entity | `METER_READ` | Main energy sensor | Latest meter reading (kWh), shown as total-increasing energy sensor | `unique_id: <zaehlpunkt>` |
+| Sensor entity | `METER_READ` | Main daily snapshot sensor | Latest METER_READ value (kWh), measurement-style card value | `unique_id: <zaehlpunkt>_main_daily_snapshot` |
 | Sensor entity | `DAY` | Daily consumption sensor | Latest daily consumption (kWh) | `unique_id: <zaehlpunkt>_day` |
 | Sensor entity | `DAY` | DAY reading-date timestamp sensor | Source timestamp of the latest DAY value | `unique_id: <zaehlpunkt>_day_reading_date` |
 | Sensor entity | `METER_READ` | METER_READ reading-date timestamp sensor | Effective reading date for the latest METER_READ value | `unique_id: <zaehlpunkt>_meter_read_reading_date` |
 | Recorder statistics (long-term) | Main importer (`METER_READ`/default granularity path) | Long-term statistics series for the main sensor | Imported into recorder statistics for Energy/History usage, timestamped by the effective METER_READ reading date | `statistic_id: wnsm:<zaehlpunkt-lowercase>` |
+| Recorder statistics (long-term) | `METER_READ` (snapshot) | Main daily snapshot long-term statistics series | Imported with `start == reading_date` (`state = meter_read_kWh`, `sum = None`) | `statistic_id: wnsm:<slugified-zaehlpunkt>_main_daily_snapshot` |
 | Recorder statistics (long-term, optional) | `DAY` | Additional DAY long-term statistics series (enabled via option) | One statistic point per day (`state = day kWh`, `sum = None`) | `statistic_id: wnsm:<slugified-zaehlpunkt>_day` |
 
 #### Important notes
 
 - Enabling **DAY statistics import** does **not** create extra entities. It adds an extra recorder/long-term statistics series for DAY values.
-- With **2 Zählpunkte**, you will usually see **8 entities** (4 per Zählpunkt). If DAY stats import is enabled, you also get **2 extra long-term statistics series** (one per Zählpunkt) in addition to the main statistics series.
+- With **2 Zählpunkte**, you will usually see **10 entities** (5 per Zählpunkt). If DAY stats import is enabled, you also get **2 extra long-term statistics series** (one per Zählpunkt) in addition to the main and main-snapshot statistics series.
 
 ## FAQs
 [FAQs](https://github.com/DarwinsBuddy/WienerNetzeSmartmeter/discussions/19)
@@ -60,12 +62,13 @@ Configure the integration via the Home Assistant UI and select your Zählpunkte 
 
 ### Setup behavior (current implementation)
 
-- The integration creates **4 entities per active Zählpunkt**:
+- The integration creates **5 entities per active Zählpunkt**:
   1. Main energy sensor (`METER_READ`, total increasing)
-  2. Daily consumption sensor (`DAY`, measurement)
-  3. DAY reading-date timestamp sensor
-  4. METER_READ reading-date timestamp sensor
-- With 2 Zählpunkte, this results in **8 entities**.
+  2. Main daily snapshot sensor (`METER_READ`, measurement)
+  3. Daily consumption sensor (`DAY`, measurement)
+  4. DAY reading-date timestamp sensor
+  5. METER_READ reading-date timestamp sensor
+- With 2 Zählpunkte, this results in **10 entities**.
 
 ### Options
 

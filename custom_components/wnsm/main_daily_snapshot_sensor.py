@@ -3,17 +3,19 @@ from datetime import datetime, timedelta
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.const import UnitOfEnergy
+from homeassistant.exceptions import HomeAssistantError
 
 from .AsyncSmartmeter import AsyncSmartmeter
 from .api import Smartmeter
 from .const import DEFAULT_SCAN_INTERVAL_MINUTES
+from .main_daily_snapshot_statistics_importer import MainDailySnapshotStatisticsImporter
 from .meter_read_logic import async_get_latest_meter_read_payload
 
 _LOGGER = logging.getLogger(__name__)
 
 
 class WNSMMainDailySnapshotSensor(SensorEntity):
-    """Representation of a main energy snapshot sensor (daily-like view)."""
+    """Measurement-style METER_READ snapshot sensor with reading-date aligned statistics."""
 
     def __init__(
         self,
@@ -42,29 +44,28 @@ class WNSMMainDailySnapshotSensor(SensorEntity):
         self._attr_suggested_update_interval = scan_interval
 
     @property
+    def name(self) -> str:
+        return self._attr_name
+
+    @property
     def unique_id(self) -> str:
-        """Return the unique ID of the sensor."""
         return f"{self.zaehlpunkt}_main_daily_snapshot"
 
     @property
     def available(self) -> bool:
-        """Return True if entity is available."""
         return self._available
 
     def _get_async_smartmeter(self) -> AsyncSmartmeter:
-        """Return shared async smartmeter client, fallback to per-entity one."""
         if self._async_smartmeter is None:
             smartmeter = Smartmeter(username=self.username, password=self.password)
             self._async_smartmeter = AsyncSmartmeter(self.hass, smartmeter)
         return self._async_smartmeter
 
     async def async_update(self):
-        """Update sensor."""
         try:
             async_smartmeter = self._get_async_smartmeter()
             await async_smartmeter.login()
             zaehlpunkt_response = await async_smartmeter.get_zaehlpunkt(self.zaehlpunkt)
-
             if async_smartmeter.is_active(zaehlpunkt_response):
                 meter_reading, self._attr_extra_state_attributes = await async_get_latest_meter_read_payload(
                     async_smartmeter,
@@ -73,7 +74,9 @@ class WNSMMainDailySnapshotSensor(SensorEntity):
                 )
                 if meter_reading is not None:
                     self._attr_native_value = meter_reading
-
+                    reading_date = self._attr_extra_state_attributes.get("reading_date")
+                    importer = MainDailySnapshotStatisticsImporter(self.hass, self.zaehlpunkt)
+                    await importer.async_import(reading_date, meter_reading)
             self._available = True
             self._updatets = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
         except TimeoutError as e:
@@ -82,3 +85,6 @@ class WNSMMainDailySnapshotSensor(SensorEntity):
         except RuntimeError as e:
             self._available = False
             _LOGGER.exception("Error retrieving data from smart meter api - Error: %s", e)
+        except HomeAssistantError as e:
+            self._available = False
+            _LOGGER.exception("Error importing main snapshot statistics - Error: %s", e)
