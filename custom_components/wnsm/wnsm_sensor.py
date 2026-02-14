@@ -5,23 +5,21 @@ from typing import Any, Optional
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorStateClass,
-    ENTITY_ID_FORMAT
+    ENTITY_ID_FORMAT,
 )
-from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import UnitOfEnergy
 from homeassistant.util import slugify
 
-from .AsyncSmartmeter import AsyncSmartmeter
-from .api import Smartmeter
 from .api.constants import ValueType
-from .importer import Importer
+from .base_sensor import WNSMBaseSensor
 from .const import DEFAULT_SCAN_INTERVAL_MINUTES
+from .importer import Importer
 from .meter_read_logic import async_get_latest_meter_read_payload
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class WNSMSensor(SensorEntity):
+class WNSMSensor(WNSMBaseSensor):
     """Representation of Wiener Smartmeter total energy sensor."""
 
     def _icon(self) -> str:
@@ -29,17 +27,14 @@ class WNSMSensor(SensorEntity):
 
     def __init__(
         self,
-        async_smartmeter: AsyncSmartmeter | None,
+        async_smartmeter,
         username: str,
         password: str,
         zaehlpunkt: str,
         scan_interval: timedelta = timedelta(minutes=DEFAULT_SCAN_INTERVAL_MINUTES),
     ) -> None:
-        super().__init__()
-        self.username = username
-        self.password = password
+        super().__init__(async_smartmeter, username, password)
         self.zaehlpunkt = zaehlpunkt
-        self._async_smartmeter = async_smartmeter
 
         self._attr_native_value: int | float | None = 0
         self._attr_extra_state_attributes = {"raw_api": {}}
@@ -84,13 +79,6 @@ class WNSMSensor(SensorEntity):
 
     def granularity(self) -> ValueType:
         return ValueType.from_str(self._attr_extra_state_attributes.get("granularity", "QUARTER_HOUR"))
-
-    def _get_async_smartmeter(self) -> AsyncSmartmeter:
-        """Return shared async smartmeter client, fallback to per-entity one."""
-        if self._async_smartmeter is None:
-            smartmeter = Smartmeter(username=self.username, password=self.password)
-            self._async_smartmeter = AsyncSmartmeter(self.hass, smartmeter)
-        return self._async_smartmeter
 
     async def async_update(self):
         """Update sensor."""

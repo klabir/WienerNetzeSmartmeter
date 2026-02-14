@@ -1,12 +1,11 @@
 import logging
 from datetime import datetime, timedelta
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
+from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 from homeassistant.const import UnitOfEnergy
 from homeassistant.exceptions import HomeAssistantError
 
-from .AsyncSmartmeter import AsyncSmartmeter
-from .api import Smartmeter
+from .base_sensor import WNSMBaseSensor
 from .const import DEFAULT_SCAN_INTERVAL_MINUTES
 from .main_daily_snapshot_statistics_importer import MainDailySnapshotStatisticsImporter
 from .meter_read_logic import async_get_latest_meter_read_payload
@@ -14,22 +13,19 @@ from .meter_read_logic import async_get_latest_meter_read_payload
 _LOGGER = logging.getLogger(__name__)
 
 
-class WNSMMainDailySnapshotSensor(SensorEntity):
+class WNSMMainDailySnapshotSensor(WNSMBaseSensor):
     """Measurement-style METER_READ snapshot sensor with reading-date aligned statistics."""
 
     def __init__(
         self,
-        async_smartmeter: AsyncSmartmeter | None,
+        async_smartmeter,
         username: str,
         password: str,
         zaehlpunkt: str,
         scan_interval: timedelta = timedelta(minutes=DEFAULT_SCAN_INTERVAL_MINUTES),
     ) -> None:
-        super().__init__()
-        self.username = username
-        self.password = password
+        super().__init__(async_smartmeter, username, password)
         self.zaehlpunkt = zaehlpunkt
-        self._async_smartmeter = async_smartmeter
 
         self._attr_native_value: int | float | None = None
         self._attr_name = f"{zaehlpunkt} Main Daily Snapshot"
@@ -54,12 +50,6 @@ class WNSMMainDailySnapshotSensor(SensorEntity):
     @property
     def available(self) -> bool:
         return self._available
-
-    def _get_async_smartmeter(self) -> AsyncSmartmeter:
-        if self._async_smartmeter is None:
-            smartmeter = Smartmeter(username=self.username, password=self.password)
-            self._async_smartmeter = AsyncSmartmeter(self.hass, smartmeter)
-        return self._async_smartmeter
 
     async def async_update(self):
         try:

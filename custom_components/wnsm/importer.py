@@ -18,6 +18,7 @@ from homeassistant.util import dt as dt_util
 from .AsyncSmartmeter import AsyncSmartmeter
 from .api.constants import ValueType
 from .const import DOMAIN
+from .statistics_utils import parse_stats_timestamp
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -130,12 +131,9 @@ class Importer:
             _LOGGER.debug("Skipping import for %s: reading_date is missing", self.zaehlpunkt)
             return
 
-        start = dt_util.parse_datetime(reading_date)
+        start = parse_stats_timestamp(dt_util.parse_datetime(reading_date))
         if start is None:
             _LOGGER.warning("Skipping import for %s: invalid reading_date '%s'", self.zaehlpunkt, reading_date)
-            return
-        if start.tzinfo is None:
-            _LOGGER.warning("Skipping import for %s: reading_date must be timezone-aware (%s)", self.zaehlpunkt, reading_date)
             return
 
         last_inserted_stat = await get_instance(self.hass).async_add_executor_job(
@@ -156,12 +154,9 @@ class Importer:
             raw_end = last_entry.get("end")
 
             if raw_end is not None:
-                if isinstance(raw_end, (int, float)):
-                    raw_end = dt_util.utc_from_timestamp(raw_end)
-                elif isinstance(raw_end, str):
-                    raw_end = dt_util.parse_datetime(raw_end)
-                if isinstance(raw_end, datetime) and start <= raw_end:
-                    _LOGGER.debug("Skipping import for %s: reading_date %s is not newer than last end %s", self.zaehlpunkt, start, raw_end)
+                parsed_end = parse_stats_timestamp(raw_end)
+                if isinstance(parsed_end, datetime) and start <= parsed_end:
+                    _LOGGER.debug("Skipping import for %s: reading_date %s is not newer than last end %s", self.zaehlpunkt, start, parsed_end)
                     return
 
             if raw_sum is not None:

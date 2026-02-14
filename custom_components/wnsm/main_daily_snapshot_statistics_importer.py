@@ -1,25 +1,15 @@
 import logging
-from datetime import datetime, timezone
 
-from homeassistant.components.recorder import get_instance
 from homeassistant.components.recorder.models import StatisticData, StatisticMetaData
-from homeassistant.components.recorder.statistics import async_add_external_statistics, get_last_statistics
+from homeassistant.components.recorder.statistics import async_add_external_statistics
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 from homeassistant.util import slugify
 
 from .const import DOMAIN
+from .statistics_utils import as_utc, get_last_stats_timestamp
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def _as_utc(value: datetime | None) -> datetime | None:
-    """Normalize datetime to timezone-aware UTC."""
-    if value is None:
-        return None
-    if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
 
 
 class MainDailySnapshotStatisticsImporter:
@@ -46,30 +36,12 @@ class MainDailySnapshotStatisticsImporter:
             _LOGGER.debug("Skipping main snapshot import for %s: reading_date is missing", self.zaehlpunkt)
             return
 
-        start = dt_util.parse_datetime(reading_date)
-        start = _as_utc(start)
+        start = as_utc(dt_util.parse_datetime(reading_date))
         if start is None:
             _LOGGER.warning("Skipping main snapshot import for %s: invalid reading_date '%s'", self.zaehlpunkt, reading_date)
             return
 
-        last = await get_instance(self.hass).async_add_executor_job(
-            get_last_statistics,
-            self.hass,
-            1,
-            self.id,
-            True,
-            {"start"},
-        )
-
-        last_start = None
-        if self.id in last and len(last[self.id]) == 1:
-            last_start = last[self.id][0].get("start")
-            if isinstance(last_start, (int, float)):
-                last_start = dt_util.utc_from_timestamp(last_start)
-            elif isinstance(last_start, str):
-                last_start = dt_util.parse_datetime(last_start)
-            last_start = _as_utc(last_start)
-
+        last_start = await get_last_stats_timestamp(self.hass, self.id, "start")
         if last_start is not None and start <= last_start:
             return
 
