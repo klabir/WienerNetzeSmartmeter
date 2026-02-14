@@ -106,6 +106,14 @@ class WNSMSensor(SensorEntity):
                 )
                 if meter_reading is not None:
                     self._attr_native_value = meter_reading
+                importer = Importer(
+                    self.hass,
+                    async_smartmeter,
+                    self.zaehlpunkt,
+                    zaehlpunkt_response,
+                )
+                if meter_reading is not None:
+                    self._attr_native_value = meter_reading
                     reading_date = self._attr_extra_state_attributes.get("reading_date")
                     importer = Importer(
                         self.hass,
