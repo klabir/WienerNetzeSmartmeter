@@ -8,10 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 from homeassistant.util import slugify
 
-from .AsyncSmartmeter import AsyncSmartmeter
-from .api.constants import ValueType
 from .const import DOMAIN
-from .day_processing import extract_day_points
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,27 +22,36 @@ def _as_utc(value: datetime | None) -> datetime | None:
     return value.astimezone(timezone.utc)
 
 
-class DayStatisticsImporter:
-    """Import DAY readings into long-term statistics with source timestamps."""
+class MainDailySnapshotStatisticsImporter:
+    """Import METER_READ snapshot points into long-term statistics with reading-date timestamps."""
 
-    def __init__(self, hass: HomeAssistant, async_smartmeter: AsyncSmartmeter, zaehlpunkt: str):
+    def __init__(self, hass: HomeAssistant, zaehlpunkt: str):
         self.hass = hass
-        self.async_smartmeter = async_smartmeter
         self.zaehlpunkt = zaehlpunkt
-        self.id = f"{DOMAIN}:{slugify(zaehlpunkt)}_day"
+        self.id = f"{DOMAIN}:{slugify(zaehlpunkt)}_main_daily_snapshot"
 
     def get_statistics_metadata(self) -> StatisticMetaData:
         return StatisticMetaData(
             source=DOMAIN,
             statistic_id=self.id,
-            name=f"{self.zaehlpunkt} Day",
+            name=f"{self.zaehlpunkt} Main Daily Snapshot",
             unit_of_measurement="kWh",
             has_mean=False,
             has_sum=False,
         )
 
-    async def async_import(self, date_from: datetime, date_to: datetime) -> None:
-        """Import statistics newer than the latest imported sample."""
+    async def async_import(self, reading_date: str | None, meter_reading: int | float) -> None:
+        """Import one snapshot point at the provided reading date."""
+        if reading_date is None:
+            _LOGGER.debug("Skipping main snapshot import for %s: reading_date is missing", self.zaehlpunkt)
+            return
+
+        start = dt_util.parse_datetime(reading_date)
+        start = _as_utc(start)
+        if start is None:
+            _LOGGER.warning("Skipping main snapshot import for %s: invalid reading_date '%s'", self.zaehlpunkt, reading_date)
+            return
+
         last = await get_instance(self.hass).async_add_executor_job(
             get_last_statistics,
             self.hass,
@@ -54,6 +60,7 @@ class DayStatisticsImporter:
             True,
             {"start"},
         )
+
         last_start = None
         if self.id in last and len(last[self.id]) == 1:
             last_start = last[self.id][0].get("start")
@@ -63,22 +70,9 @@ class DayStatisticsImporter:
                 last_start = dt_util.parse_datetime(last_start)
             last_start = _as_utc(last_start)
 
-        raw = await self.async_smartmeter.get_historic_data(
-            self.zaehlpunkt,
-            date_from,
-            date_to,
-            ValueType.DAY,
-        )
-        points = extract_day_points(raw)
+        if last_start is not None and start <= last_start:
+            return
+
         metadata = self.get_statistics_metadata()
-
-        stats = []
-        for point in sorted(points, key=lambda p: p.source_timestamp):
-            ts = _as_utc(point.source_timestamp)
-            if last_start is not None and ts <= last_start:
-                continue
-            stats.append(StatisticData(start=ts, state=float(point.value_kwh), sum=None))
-
-        if stats:
-            _LOGGER.debug("Importing %s DAY statistics for %s", len(stats), self.zaehlpunkt)
-            async_add_external_statistics(self.hass, metadata, stats)
+        stats = [StatisticData(start=start, state=float(meter_reading), sum=None)]
+        async_add_external_statistics(self.hass, metadata, stats)
