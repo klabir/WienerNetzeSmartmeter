@@ -11,7 +11,6 @@ from homeassistant import config_entries
 from homeassistant.const import CONF_PASSWORD, CONF_SCAN_INTERVAL, CONF_USERNAME
 
 from .api import Smartmeter
-from .api.errors import SmartmeterConnectionError, SmartmeterLoginError
 from .const import (
     ATTRS_ZAEHLPUNKTE_CALL,
     CONF_ENABLE_DAY_STATISTICS_IMPORT,
@@ -83,7 +82,7 @@ class WienerNetzeSmartMeterCustomConfigFlow(config_entries.ConfigFlow, domain=DO
                 zaehlpunkte = await self._validate_auth(
                     user_input[CONF_USERNAME], user_input[CONF_PASSWORD]
                 )
-            except (SmartmeterConnectionError, SmartmeterLoginError, TimeoutError, RuntimeError):
+            except Exception:  # pylint: disable=broad-except
                 _LOGGER.exception("Error validating Wiener Netze auth")
                 errors["base"] = "auth"
             else:
