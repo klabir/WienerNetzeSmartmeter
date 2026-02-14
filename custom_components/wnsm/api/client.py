@@ -6,7 +6,6 @@ from urllib import parse
 from typing import List, Dict, Any
 
 import requests
-from requests import RequestException
 from dateutil.relativedelta import relativedelta
 from lxml import html
 
@@ -117,7 +116,7 @@ class Smartmeter:
         login_url = const.AUTH_URL + "auth?" + parse.urlencode(self._local_login_args)
         try:
             result = self.session.get(login_url)
-        except RequestException as exception:
+        except Exception as exception:
             raise SmartmeterConnectionError("Could not load login page") from exception
         if result.status_code != 200:
             raise SmartmeterConnectionError(
@@ -156,7 +155,7 @@ class Smartmeter:
                 },
                 allow_redirects=False,
             )
-        except (RequestException, IndexError, ValueError) as exception:
+        except Exception as exception:
             raise SmartmeterConnectionError(
                 "Could not login with credentials"
             ) from exception
@@ -191,7 +190,7 @@ class Smartmeter:
                 const.AUTH_URL + "token",
                 data=const.build_access_token_args(code=code , code_verifier=self._code_verifier)
             )
-        except RequestException as exception:
+        except Exception as exception:
             raise SmartmeterConnectionError(
                 "Could not obtain access token"
             ) from exception
@@ -246,7 +245,7 @@ class Smartmeter:
         headers = {"Authorization": f"Bearer {token}"}
         try:
             result = self.session.get(const.API_CONFIG_URL, headers=headers).json()
-        except (RequestException, ValueError) as exception:
+        except Exception as exception:
             raise SmartmeterConnectionError("Could not obtain API key") from exception
 
         find_keys = ["b2cApiKey", "b2bApiKey"]
